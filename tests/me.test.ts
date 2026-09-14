@@ -121,6 +121,73 @@ describe("me: error taxonomy through the operation", () => {
   });
 });
 
+describe("me: output validation (T05 regressions)", () => {
+  it("rejects a 200 whose id is a nested object instead of a string", async () => {
+    stubFetch(async () => envelope({ ...PROFILE, id: { email: "fake@example.invalid" } }));
+    let error: unknown;
+    try {
+      await me.handler({}, makeContext({ GROUPME_ACCESS_TOKEN: TOKEN }));
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GroupMeError);
+    expect((error as GroupMeError).code).toBe("malformed_response");
+    expect(JSON.stringify(error)).not.toContain("fake@example.invalid");
+  });
+
+  it("rejects wrong field types (numeric name, string timestamps)", async () => {
+    stubFetch(async () =>
+      envelope({ ...PROFILE, name: 42, created_at: "1600000000", updated_at: "1700000000" }),
+    );
+    let error: unknown;
+    try {
+      await me.handler({}, makeContext({ GROUPME_ACCESS_TOKEN: TOKEN }));
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as GroupMeError).code).toBe("malformed_response");
+  });
+
+  it("rejects a payload missing required fields", async () => {
+    stubFetch(async () => envelope({ id: "1" }));
+    let error: unknown;
+    try {
+      await me.handler({}, makeContext({ GROUPME_ACCESS_TOKEN: TOKEN }));
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as GroupMeError).code).toBe("malformed_response");
+  });
+
+  it("rejects an array or null inner response", async () => {
+    for (const inner of [[PROFILE], null]) {
+      stubFetch(async () => envelope(inner));
+      let error: unknown;
+      try {
+        await me.handler({}, makeContext({ GROUPME_ACCESS_TOKEN: TOKEN }));
+      } catch (caught) {
+        error = caught;
+      }
+      expect((error as GroupMeError).code).toBe("malformed_response");
+    }
+  });
+
+  it("preserves the valid profile shape and PII omission through validation", async () => {
+    stubFetch(async () => envelope(PROFILE));
+    const result = await me.handler({}, makeContext({ GROUPME_ACCESS_TOKEN: TOKEN }));
+    me.output!.parse(result);
+    expect(result).toEqual({
+      id: "1234567890",
+      name: "Test User",
+      image_url: "https://i.groupme.com/avatars/test.jpeg",
+      created_at: 1600000000,
+      updated_at: 1700000000,
+    });
+    expect(JSON.stringify(result)).not.toContain(PHONE);
+    expect(JSON.stringify(result)).not.toContain(EMAIL);
+  });
+});
+
 describe("me: non-disclosure across every scenario", () => {
   it("the fixture token appears in no serialized result or error", async () => {
     const observations: string[] = [];

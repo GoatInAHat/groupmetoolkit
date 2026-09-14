@@ -358,6 +358,208 @@ describe("groupmeFetch: success envelope", () => {
   });
 });
 
+describe("groupmeFetch: token redaction (T05 regressions)", () => {
+  it("scrubs the request token echoed in a 401's meta.errors", async () => {
+    const fetchImpl: FetchSpy = vi.fn(async () =>
+      jsonResponse(401, {
+        meta: { errors: [`Invalid token: ${TOKEN}`, `prefix ${TOKEN} suffix`] },
+      }),
+    );
+    const error = await makeError(
+      groupmeFetch({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { maxRetries: 0 }),
+    );
+    expect(error.code).toBe("auth_error");
+    expect(error.message).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
+    expect(error.upstreamErrors).toEqual([
+      "Invalid token: [redacted]",
+      "prefix [redacted] suffix",
+    ]);
+  });
+
+  it("scrubs the token from a fetch-failure cause's message", async () => {
+    const fetchImpl: FetchSpy = vi.fn(async () => {
+      throw new TypeError(`fetch of ${TOKEN} failed`);
+    });
+    const error = await makeError(
+      groupmeFetch({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async () => {} }),
+    );
+    expect(error.code).toBe("network_error");
+    expect(error.message).not.toContain(TOKEN);
+    expect(JSON.stringify(error)).not.toContain(TOKEN);
+    const cause = error.cause as Error;
+    expect(cause).toBeInstanceOf(Error);
+    expect(cause.message).not.toContain(TOKEN);
+    expect(cause.message).toContain("[redacted]");
+  });
+
+  it("scrubs the token from a body-read failure and classifies it", async () => {
+    const bodyFails = (thrown: unknown, status = 200): Response =>
+      ({
+        status,
+        type: "default",
+        headers: new Headers(),
+        json: async () => {
+          throw thrown;
+        },
+      }) as unknown as Response;
+
+    // JSON syntax failure -> malformed_response, non-retryable, token scrubbed.
+    const syntaxFetch: FetchSpy = vi.fn(async () =>
+      bodyFails(new SyntaxError(`Unexpected token in ${TOKEN}`)),
+    );
+    const syntaxError = await makeError(
+      groupmeFetch({
+        fetchImpl: syntaxFetch as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }),
+    );
+    expect(syntaxError.code).toBe("malformed_response");
+    expect(syntaxError.message).not.toContain(TOKEN);
+    expect((syntaxError.cause as Error).message).not.toContain(TOKEN);
+    expect(syntaxFetch).toHaveBeenCalledTimes(1);
+
+    // Abort/timeout during body read -> network_error, retryable, deadline covers body.
+    const abortFetch: FetchSpy = vi.fn(async () =>
+      bodyFails(new DOMException("The operation was aborted", "TimeoutError")),
+    );
+    const abortError = await makeError(
+      groupmeFetch({
+        fetchImpl: abortFetch as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async () => {} }),
+    );
+    expect(abortError.code).toBe("network_error");
+    expect(abortError.message).not.toContain(TOKEN);
+    expect(abortFetch).toHaveBeenCalledTimes(3); // initial + 2 bounded retries
+  });
+});
+
+describe("groupmeFetch: retryability is restricted to 429/5xx/network (T05)", () => {
+  for (const status of [400, 409]) {
+    it(`makes exactly one request for unexpected ${status}`, async () => {
+      const fetchImpl: FetchSpy = vi.fn(async () => jsonResponse(status, { meta: {} }));
+      const error = await makeError(
+        groupmeFetch({
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+          token: TOKEN,
+          path: "/x",
+        }, { delayMs: async () => {} }),
+      );
+      expect(error.code).toBe("upstream_error");
+      expect(error.status).toBe(status);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it("keeps the bounded retry count for 500 and network failures", async () => {
+    const fiveHundred: FetchSpy = vi.fn(async () => jsonResponse(500, { meta: {} }));
+    await makeError(
+      groupmeFetch({
+        fetchImpl: fiveHundred as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async () => {} }),
+    );
+    expect(fiveHundred).toHaveBeenCalledTimes(3);
+
+    const network: FetchSpy = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    await makeError(
+      groupmeFetch({
+        fetchImpl: network as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async () => {} }),
+    );
+    expect(network).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("groupmeFetch: Retry-After is bounded (T05)", () => {
+  it("honors a normal Retry-After delay via the injected clock", async () => {
+    const delays: number[] = [];
+    const fetchImpl: FetchSpy = vi.fn(async () =>
+      jsonResponse(429, { meta: {} }, { "Retry-After": "3" }),
+    );
+    await makeError(
+      groupmeFetch({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async (ms) => { delays.push(ms); } }),
+    );
+    expect(delays).toEqual([3000, 3000]);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops immediately with rate_limited + retryAfterSeconds for a day-long window", async () => {
+    const delays: number[] = [];
+    const fetchImpl: FetchSpy = vi.fn(async () =>
+      jsonResponse(429, { meta: {} }, { "Retry-After": "86400" }),
+    );
+    const error = await makeError(
+      groupmeFetch({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async (ms) => { delays.push(ms); } }),
+    );
+    expect(error.code).toBe("rate_limited");
+    expect(error.retryAfterSeconds).toBe(86400);
+    expect(delays).toEqual([]); // no automatic waiting
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // no early retry either
+  });
+
+  it("falls back to bounded backoff for malformed Retry-After values", async () => {
+    const delays: number[] = [];
+    const fetchImpl: FetchSpy = vi.fn(async () =>
+      jsonResponse(429, { meta: {} }, { "Retry-After": "soonish" }),
+    );
+    const error = await makeError(
+      groupmeFetch({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async (ms) => { delays.push(ms); } }),
+    );
+    expect(error.retryAfterSeconds).toBeUndefined();
+    expect(delays).toEqual([500, 1000]); // exponential backoff, never server-directed
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("treats a timer-overflow Retry-After as unusable and falls back to bounded backoff", async () => {
+    const delays: number[] = [];
+    const fetchImpl: FetchSpy = vi.fn(async () =>
+      jsonResponse(429, { meta: {} }, { "Retry-After": "99999999999999999999" }),
+    );
+    const error = await makeError(
+      groupmeFetch({
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: TOKEN,
+        path: "/x",
+      }, { delayMs: async (ms) => { delays.push(ms); } }),
+    );
+    expect(error.code).toBe("rate_limited");
+    expect(error.retryAfterSeconds).toBeUndefined(); // overflow value is not a usable window
+    // A strictly-validated overflow is not a server-directed window: never sleep for it and
+    // never let a setTimeout overflow fire early — bounded exponential backoff applies.
+    expect(delays).toEqual([500, 1000]);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+});
+
 describe("groupmeFetch: redaction across every failing scenario", () => {
   const failing = async (): Promise<GroupMeError> => {
     // A representative failure: upstream body plus the fixture token in play.

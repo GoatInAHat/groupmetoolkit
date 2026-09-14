@@ -28,12 +28,14 @@
     ]
   },
   "configContracts": {
-    "secretInputs": [
-      {
-        "path": "GROUPME_ACCESS_TOKEN",
-        "expected": "string"
-      }
-    ]
+    "secretInputs": {
+      "paths": [
+        {
+          "path": "GROUPME_ACCESS_TOKEN",
+          "expected": "string"
+        }
+      ]
+    }
   },
   "uiHints": {
     "GROUPME_ACCESS_TOKEN": {

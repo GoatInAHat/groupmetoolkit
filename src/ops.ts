@@ -8,19 +8,22 @@ import { operation } from "./toolfactory/types.js";
  * read only from context().config["GROUPME_ACCESS_TOKEN"] (D002) and only ever reaches the
  * client's X-Access-Token header.
  */
+
+const meOutput = z.object({
+  id: z.string(),
+  name: z.string(),
+  image_url: z.string().nullable().optional(),
+  created_at: z.number(),
+  updated_at: z.number(),
+});
+
 export const operations = [
   operation({
     name: "me",
     description:
       "Return the authenticated GroupMe profile: id, name, avatar URL, and timestamps. Phone number and email are never returned.",
     input: z.object({}),
-    output: z.object({
-      id: z.string(),
-      name: z.string(),
-      image_url: z.string().nullable().optional(),
-      created_at: z.number(),
-      updated_at: z.number(),
-    }),
+    output: meOutput,
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -41,21 +44,23 @@ export const operations = [
       if (result.response === null || typeof result.response !== "object") {
         throw new GroupMeError({ code: "malformed_response", status: result.status });
       }
-      const profile = result.response as {
-        id: string;
-        name: string;
-        image_url?: string | null;
-        created_at: number;
-        updated_at: number;
-      };
-      // Project to the declared subset: phone_number/email (PII) are dropped here.
-      return {
-        id: profile.id,
-        name: profile.name,
-        image_url: profile.image_url,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at,
-      };
+      const profile = result.response as Record<string, unknown>;
+      // Project to the declared subset: phone_number/email (PII) are dropped here, then the
+      // projection is validated against the declared output schema — a 200 whose payload is
+      // missing required fields or carries wrong types is a malformed_response, never a
+      // successful object with holes. Zod's issue text is upstream-derived, so the failure
+      // is redacted: only the redacted JSON envelope is surfaced.
+      const projection = meOutput.safeParse({
+        id: profile["id"],
+        name: profile["name"],
+        image_url: profile["image_url"],
+        created_at: profile["created_at"],
+        updated_at: profile["updated_at"],
+      });
+      if (!projection.success) {
+        throw new GroupMeError({ code: "malformed_response", status: result.status });
+      }
+      return projection.data;
     },
   }),
 ];

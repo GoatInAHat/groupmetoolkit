@@ -15,12 +15,17 @@
  *   it without reworking this client). 304 is intentionally classified before the generic
  *   3xx redirect check because it is a conditional-cache status, not a redirect.
  * - A 2xx must parse as JSON with a top-level "response" key (GroupMe v3 envelope), else
- *   malformed_response; the inner "response" payload is what the caller receives.
+ *   malformed_response; the inner "response" payload is what the caller receives. A JSON
+ *   syntax failure in the body is malformed_response, while a body read that fails from
+ *   timeout/abort/connectivity is network_error and stays retryable — the request deadline
+ *   covers body consumption, not just headers.
  * - missing_auth is raised BEFORE any fetch when the token is absent/empty/non-string.
  * - GroupMeError.message is the redacted JSON string {"code":...} so CLI (prints
  *   error.message, exit 1), MCP (errored tool result), and OpenClaw native (rethrow) all
- *   surface identical structured text. The token never appears anywhere, and upstream
- *   bodies surface only as redacted meta.errors strings (strings only, capped).
+ *   surface identical structured text. The token never appears anywhere: upstream
+ *   meta.errors strings are scrubbed of the request token (and capped), and diagnostic
+ *   causes have the token scrubbed from their messages before attachment, so hosts that
+ *   serialize error causes can never leak it either.
  */
 
 export type GroupMeErrorCode =
@@ -47,6 +52,13 @@ export interface GroupMeErrorFields {
 
 const REDACTED_ERRORS_MAX_ENTRIES = 10;
 const REDACTED_ERRORS_MAX_LENGTH = 200;
+/**
+ * Upper bound on ONE automatic retry wait. A server-requested Retry-After beyond this
+ * is never honored by sleeping — the caller gets rate_limited + retryAfterSeconds and
+ * can schedule its own retry. 60s keeps automatic backpressure well inside any host's
+ * tool-call timeout while still honoring normal short Retry-After windows.
+ */
+const MAX_RETRY_WAIT_MS = 60_000;
 
 /** Stable-code error whose message is the redacted JSON every surface prints verbatim. */
 export class GroupMeError extends Error {
@@ -110,9 +122,10 @@ function defaultDelay(ms: number): Promise<void> {
 }
 
 function isRetryable(error: GroupMeError): boolean {
-  return (
-    error.code === "rate_limited" || error.code === "upstream_error" || error.code === "network_error"
-  );
+  if (error.code === "rate_limited" || error.code === "network_error") return true;
+  // Only 5xx (and 429 above) are retryable upstream conditions; unexpected 4xx such as
+  // 400/409 are deterministic request problems — mapped to upstream_error but never retried.
+  return error.code === "upstream_error" && error.status !== undefined && error.status >= 500;
 }
 
 /** Exponential backoff; a 429's parsed Retry-After seconds take precedence. */
@@ -125,8 +138,12 @@ function retryDelayMs(error: GroupMeError, attempt: number): number {
 
 function parseRetryAfter(header: string | null): number | undefined {
   if (header === null) return undefined;
-  const seconds = Number.parseInt(header, 10);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
+  // Strictly digits-only integer seconds; anything else (HTTP-date, float, signed,
+  // timer-overflow garbage) falls through to plain exponential backoff.
+  if (!/^\d+$/.test(header)) return undefined;
+  const seconds = Number(header);
+  if (!Number.isSafeInteger(seconds)) return undefined;
+  return seconds;
 }
 
 function statusToCode(status: number): GroupMeErrorCode {
@@ -136,8 +153,13 @@ function statusToCode(status: number): GroupMeErrorCode {
   return "upstream_error"; // 5xx and any other unexpected status (400, 409, ...)
 }
 
-/** Only string entries of meta.errors survive, capped — never the raw body. */
-function redactUpstreamErrors(body: unknown): string[] | undefined {
+/** Replace every occurrence of the request token with a placeholder. */
+function scrubToken(text: string, token: string): string {
+  return token.length > 0 ? text.split(token).join("[redacted]") : text;
+}
+
+/** Cap length and entries, scrub the request token; only meta.errors strings survive. */
+function redactUpstreamErrors(body: unknown, token: string): string[] | undefined {
   if (body === null || typeof body !== "object") return undefined;
   const meta = (body as Record<string, unknown>)["meta"];
   if (meta === null || typeof meta !== "object") return undefined;
@@ -145,9 +167,33 @@ function redactUpstreamErrors(body: unknown): string[] | undefined {
   if (!Array.isArray(errors)) return undefined;
   const strings = errors
     .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => scrubToken(entry, token))
     .slice(0, REDACTED_ERRORS_MAX_ENTRIES)
     .map((entry) => (entry.length > REDACTED_ERRORS_MAX_LENGTH ? entry.slice(0, REDACTED_ERRORS_MAX_LENGTH) : entry));
   return strings.length > 0 ? strings : undefined;
+}
+
+/**
+ * Diagnostic cause with the request token scrubbed from its message (and any string
+ * property surfaces we attach), so hosts that serialize causes can never leak the token.
+ */
+function redactCause(error: unknown, token: string): Error {
+  const redacted = new Error(
+    error instanceof Error ? scrubToken(error.message, token) : scrubToken(String(error), token),
+  );
+  redacted.name = error instanceof Error ? error.name : "UnknownError";
+  return redacted;
+}
+
+/**
+ * Classify a failed body read. A JSON syntax failure means the server sent garbage —
+ * malformed_response. An aborted/timed-out/failed body read after headers arrived is a
+ * connectivity problem — network_error (retryable; the signal covers body consumption).
+ */
+function classifyBodyReadError(error: unknown): "malformed_response" | "network_error" {
+  if (error instanceof SyntaxError) return "malformed_response";
+  const name = error instanceof Error ? error.name : "";
+  return name === "AbortError" || name === "TimeoutError" ? "network_error" : "network_error";
 }
 
 async function safeJsonBody(response: Response): Promise<unknown> {
@@ -187,12 +233,12 @@ async function attemptOnce(
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
-    throw new GroupMeError({ code: "network_error", cause: error });
+    throw new GroupMeError({ code: "network_error", cause: redactCause(error, token) });
   }
-  return classifyResponse(response);
+  return classifyResponse(response, token);
 }
 
-async function classifyResponse(response: Response): Promise<GroupMeResult> {
+async function classifyResponse(response: Response, token: string): Promise<GroupMeResult> {
   // Fail closed on redirects before anything else; opaqueredirect carries status 0.
   if (response.type === "opaqueredirect") {
     throw new GroupMeError({ code: "redirect_blocked" });
@@ -208,7 +254,8 @@ async function classifyResponse(response: Response): Promise<GroupMeResult> {
     try {
       parsed = await response.json();
     } catch (error) {
-      throw new GroupMeError({ code: "malformed_response", status: response.status, cause: error });
+      const code = classifyBodyReadError(error);
+      throw new GroupMeError({ code, status: response.status, cause: redactCause(error, token) });
     }
     if (parsed === null || typeof parsed !== "object" || !("response" in parsed)) {
       throw new GroupMeError({ code: "malformed_response", status: response.status });
@@ -220,7 +267,7 @@ async function classifyResponse(response: Response): Promise<GroupMeResult> {
     };
   }
   // Error statuses: read the body best-effort; only meta.errors strings survive.
-  const upstreamErrors = redactUpstreamErrors(await safeJsonBody(response));
+  const upstreamErrors = redactUpstreamErrors(await safeJsonBody(response), token);
   const retryAfterSeconds =
     response.status === 429 ? parseRetryAfter(response.headers.get("Retry-After")) : undefined;
   throw new GroupMeError({
@@ -233,7 +280,11 @@ async function classifyResponse(response: Response): Promise<GroupMeResult> {
 
 /**
  * Perform one GroupMe v3 GET, retrying 429/5xx/network failures at most
- * `maxRetries` (default 2) times, and never following redirects.
+ * `maxRetries` (default 2) times, and never following redirects. A single automatic
+ * wait never exceeds MAX_RETRY_WAIT_MS: a Retry-After beyond the budget stops the
+ * automatic loop immediately with the rate_limited error (carrying retryAfterSeconds)
+ * instead of sleeping — retrying early would violate the server's window, and waiting
+ * hours inside one tool call would hit every host timeout.
  */
 export async function groupmeFetch(
   request: GroupMeFetchRequest,
@@ -259,10 +310,16 @@ export async function groupmeFetch(
       error =
         caught instanceof GroupMeError
           ? caught
-          : new GroupMeError({ code: "network_error", cause: caught });
+          : new GroupMeError({ code: "network_error", cause: redactCause(caught, token) });
     }
     if (!isRetryable(error) || attempt === maxRetries) throw error;
-    await delayMs(retryDelayMs(error, attempt));
+    const waitMs = retryDelayMs(error, attempt);
+    if (waitMs > MAX_RETRY_WAIT_MS) {
+      // Server asked us to back off longer than we may automatically wait: surface the
+      // rate limit (with retryAfterSeconds) now rather than sleeping or retrying early.
+      throw error;
+    }
+    await delayMs(waitMs);
   }
   // Unreachable: the loop returns or throws on every path.
   throw new GroupMeError({ code: "network_error" });
