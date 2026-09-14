@@ -17,13 +17,23 @@
     "properties": {
       "GROUPME_ACCESS_TOKEN": {
         "description": "GroupMe access token; hosts inject the vault-backed value.",
-        "type": ["string", "object"],
-        "x-toolfactory": { "sensitive": true }
+        "type": [
+          "string",
+          "object"
+        ],
+        "x-toolfactory": {
+          "sensitive": true
+        }
       }
     },
     "additionalProperties": false
   },
   "tests": {
     "examples": {}
+  },
+  "openclaw": {
+    "devDependencies": {
+      "openclaw": "2026.9.2"
+    }
   }
 }

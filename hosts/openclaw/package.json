@@ -23,7 +23,7 @@
     "groupmetoolkit": "file:../.."
   },
   "devDependencies": {
-    "openclaw": "latest",
+    "openclaw": "2026.9.2",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },
