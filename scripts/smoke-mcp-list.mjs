@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // MCP surface smoke: tools/list via @modelcontextprotocol/inspector --cli.
-// Asserts the `me` tool is listed with readOnlyHint=true, destructiveHint=false,
-// idempotentHint=true. Exit non-zero otherwise.
+// Asserts every read-only operation (me, groups, group) is listed with readOnlyHint=true,
+// destructiveHint=false, idempotentHint=true. Exit non-zero otherwise.
 import { spawnSync } from "node:child_process";
 
 const res = spawnSync(
@@ -43,22 +43,26 @@ if (!Array.isArray(tools)) {
   process.exit(1);
 }
 
-const me = tools.find((t) => t.name === "me");
-if (!me) {
-  console.error("smoke-mcp-list: tool `me` not listed; got:", tools.map((t) => t.name));
-  process.exit(1);
-}
-
-const ann = me.annotations ?? {};
+const operations = ["me", "groups", "group"];
 const problems = [];
-if (ann.readOnlyHint !== true) problems.push(`readOnlyHint=${JSON.stringify(ann.readOnlyHint)} (want true)`);
-if (ann.destructiveHint !== false) problems.push(`destructiveHint=${JSON.stringify(ann.destructiveHint)} (want false)`);
-if (ann.idempotentHint !== true) problems.push(`idempotentHint=${JSON.stringify(ann.idempotentHint)} (want true)`);
+for (const name of operations) {
+  const tool = tools.find((t) => t.name === name);
+  if (!tool) {
+    problems.push(`tool \`${name}\` not listed; got: ${tools.map((t) => t.name)}`);
+    continue;
+  }
+  const ann = tool.annotations ?? {};
+  if (ann.readOnlyHint !== true) problems.push(`\`${name}\` readOnlyHint=${JSON.stringify(ann.readOnlyHint)} (want true)`);
+  if (ann.destructiveHint !== false) problems.push(`\`${name}\` destructiveHint=${JSON.stringify(ann.destructiveHint)} (want false)`);
+  if (ann.idempotentHint !== true) problems.push(`\`${name}\` idempotentHint=${JSON.stringify(ann.idempotentHint)} (want true)`);
+}
 
 if (problems.length) {
-  console.error("smoke-mcp-list: annotation mismatch for `me`:\n  " + problems.join("\n  "));
-  console.error("annotations:", JSON.stringify(ann));
+  console.error("smoke-mcp-list: annotation/listing mismatches:\n  " + problems.join("\n  "));
+  console.error("annotations:", JSON.stringify(Object.fromEntries(tools.map((t) => [t.name, t.annotations ?? {}]))));
   process.exit(1);
 }
 
-console.log("smoke-mcp-list: OK — `me` listed with readOnlyHint=true, destructiveHint=false, idempotentHint=true");
+console.log(
+  `smoke-mcp-list: OK — ${operations.join(", ")} listed with readOnlyHint=true, destructiveHint=false, idempotentHint=true`,
+);
