@@ -12,6 +12,17 @@
   "bundle": {
     "runtime": "package"
   },
+  "config": {
+    "type": "object",
+    "properties": {
+      "GROUPME_ACCESS_TOKEN": {
+        "description": "GroupMe access token; hosts inject the vault-backed value.",
+        "type": ["string", "object"],
+        "x-toolfactory": { "sensitive": true }
+      }
+    },
+    "additionalProperties": false
+  },
   "tests": {
     "examples": {}
   }

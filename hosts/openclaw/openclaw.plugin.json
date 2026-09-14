@@ -5,13 +5,39 @@
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
-    "properties": {},
-    "additionalProperties": false
+    "additionalProperties": false,
+    "properties": {
+      "GROUPME_ACCESS_TOKEN": {
+        "description": "GroupMe access token; hosts inject the vault-backed value.",
+        "type": [
+          "string",
+          "object"
+        ],
+        "x-toolfactory": {
+          "sensitive": true
+        }
+      }
+    }
   },
   "activation": {
     "onStartup": true
   },
   "contracts": {
-    "tools": []
+    "tools": [
+      "me"
+    ]
+  },
+  "configContracts": {
+    "secretInputs": [
+      {
+        "path": "GROUPME_ACCESS_TOKEN",
+        "expected": "string"
+      }
+    ]
+  },
+  "uiHints": {
+    "GROUPME_ACCESS_TOKEN": {
+      "sensitive": true
+    }
   }
 }

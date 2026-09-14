@@ -35,4 +35,4 @@ and changes nothing (openclaw 2026.8.2).
 
 ## Tools
 
-_No operation reaches this surface yet._
+- `me` — Return the authenticated GroupMe profile: id, name, avatar URL, and timestamps. Phone number and email are never returned. (native)

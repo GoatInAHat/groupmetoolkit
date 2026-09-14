@@ -26,7 +26,7 @@ function dataDir(): string {
 export function context(): Context {
   return {
     config: {
-
+  "GROUPME_ACCESS_TOKEN": process.env["GROUPME_ACCESS_TOKEN"],
     },
     dataDir: dataDir(),
   };

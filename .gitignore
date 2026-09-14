@@ -86,3 +86,35 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 *.db
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+.gsd-worktrees/
+.gsd-backups/
+.gsd-id
+.mcp.json
+.bg-shell/
+
+# The OpenClaw host depends on this repo via file:../.., and npm 11 packs file:
+# dependencies (it does not symlink them), honoring this .gitignore. Un-ignore the
+# root build output so the packed core package includes dist/ and the host can
+# resolve groupmetoolkit/dist/ops.js. Anchored to the repo root only.
+!/dist/
+nul
+nul.*
+con
+con.*
+prn
+prn.*
+aux
+aux.*
+com[1-9]
+com[1-9].*
+lpt[1-9]
+lpt[1-9].*
+*.swo
+.vscode/
+*.code-workspace
+.next/
+*.pyc
+vendor/

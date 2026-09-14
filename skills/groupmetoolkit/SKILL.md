@@ -11,5 +11,10 @@ Explain here when an agent should reach for this tool and how to combine its ope
 <!-- tf:operations -->
 ## Operations
 
-_No operations yet: run `toolfactory introspect` after adding one to the kernel._
+### me
+
+Return the authenticated GroupMe profile: id, name, avatar URL, and timestamps. Phone number and email are never returned.
+
+`groupmetoolkit me --json '<arguments>'` prints a JSON result. MCP tool `me` on server `groupmetoolkit` returns the same result as `structuredContent`.
+
 <!-- /tf:operations -->

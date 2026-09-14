@@ -5,6 +5,6 @@ import entry from "./index.js";
 
 describe("groupmetoolkit", () => {
   it("declares tool metadata", () => {
-    expect(getToolPluginMetadata(entry)?.tools.map((tool) => tool.name)).toEqual([]);
+    expect(getToolPluginMetadata(entry)?.tools.map((tool) => tool.name)).toEqual(["me"]);
   });
 });

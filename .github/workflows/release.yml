@@ -90,7 +90,7 @@ jobs:
       - name: toolfactory build (output files)
         run: npx toolfactory build
       - name: OpenClaw plugin tarball
-        run: npm --prefix hosts/openclaw install && npm --prefix hosts/openclaw run build && v=$(node -p "require('./package.json').version") && cp hosts/openclaw/package.json hosts/openclaw/package.json.prepack && (cd hosts/openclaw && npm pkg set dependencies.toolfactory=$v) && npm pack ./hosts/openclaw --pack-destination dist/release && mv hosts/openclaw/package.json.prepack hosts/openclaw/package.json
+        run: npm --prefix hosts/openclaw install && npm --prefix hosts/openclaw run build && npm pack ./hosts/openclaw --pack-destination dist/release
       - name: plugin bundle
         run: set -- skills; for path in LICENSE LICENSE.md LICENSE.txt NOTICE NOTICE.md NOTICE.txt; do if [ -f "$path" ]; then set -- "$@" "$path"; fi; done; zip -qr dist/release/groupmetoolkit-plugin.zip "$@"
       - name: coverage report

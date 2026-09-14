@@ -1,11 +1,5 @@
 # groupmetoolkit
 
-<!-- setup -->
-One-time bootstrap: if no environment hook ran it yet, run
-`bash .agents/setup`. Its first successful run makes everything in Agent
-config automatic and deletes this notice.
-<!-- /setup -->
-
 One paragraph: what an agent working in this repo should know before touching `src/ops.ts` — the tool's domain, and anything not obvious from the layout below.
 
 <!-- tf:agents -->
