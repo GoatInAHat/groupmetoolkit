@@ -1,0 +1,17 @@
+{
+  "id": "groupmetoolkit",
+  "name": "Groupmetoolkit",
+  "description": "Read-only GroupMe account tools usable from OpenClaw without a connected MacBook.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": []
+  }
+}

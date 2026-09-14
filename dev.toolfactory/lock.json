@@ -1,0 +1,238 @@
+{
+  "toolfactoryVersion": "0.2.1",
+  "files": {
+    ".agents/mcp/servers.json": {
+      "sha256": "b22185765bf318dda0f41916132c753393bf96b99be30208f1f49c589ff9ce49",
+      "state": "generated",
+      "keys": [
+        "groupmetoolkit",
+        "toolfactory"
+      ]
+    },
+    ".agents/README.md": {
+      "sha256": "617acad815520ca8ee30e928e5e7a890aa2953287d4f849bd98a7475d0d71359",
+      "state": "generated"
+    },
+    ".agents/setup": {
+      "sha256": "9cd8a4508b93350fb4c6434ff2ce0184b63c4eee3b6d4344964b899fadcb1c7d",
+      "state": "generated",
+      "regions": [
+        {
+          "begin": "# tf:setup",
+          "end": "# /tf:setup"
+        }
+      ]
+    },
+    ".agents/skills/.gitkeep": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "generated"
+    },
+    ".agents/skills/groupmetoolkit": {
+      "sha256": "5cb2f4bfff97e61cb8c4fdaa5f4a306393faf645300ae63fc7e1fbb42a8dd197",
+      "state": "generated"
+    },
+    ".agents/sync.py": {
+      "sha256": "6ebbc7efc764d0d8da813bd084b92fa8f59c9e4ad5ecccf517313f413407bb34",
+      "state": "generated"
+    },
+    ".claude/settings.json": {
+      "sha256": "5ee165b2a1f069ac273d89ac660cca5992893a63fab8a96f93ffb625b507a538",
+      "state": "generated"
+    },
+    ".cursor/environment.json": {
+      "sha256": "559393387fffd75060e1c2b09ea284969712a8976ba13720bb3854d1712002a3",
+      "state": "generated"
+    },
+    ".devcontainer/devcontainer.json": {
+      "sha256": "a5c6eba400c390481132b6fbe913962f5372747acb6250b1363e51b0919482b4",
+      "state": "generated"
+    },
+    ".devcontainer/Dockerfile": {
+      "sha256": "710e6c9d3fc037871ede60912a009223fccc4e6dd6fc9880e57911bab3677ccf",
+      "state": "generated"
+    },
+    ".env.example": {
+      "sha256": "6e42aaf6b872941b038b928239bb26cfe34a55a566c5cd2263a9ac6584c02142",
+      "state": "generated"
+    },
+    ".gitattributes": {
+      "sha256": "7cd356096f360aa1f3207ff6eef9650ea9796dff3a9fe8618ea73793b93fd4a3",
+      "state": "generated"
+    },
+    ".github/workflows/agent-config.yml": {
+      "sha256": "f12a1696e9de7d74f78d7b7a214ffdc14e2ca1ce7522d8ee5f9ad54fb9ecd642",
+      "state": "generated"
+    },
+    ".github/workflows/ci.yml": {
+      "sha256": "3101942427e1fe75358aebcad560e22b2bf302ba638c93e6f14d955d58c31a66",
+      "state": "generated"
+    },
+    ".github/workflows/copilot-setup-steps.yml": {
+      "sha256": "2acbbf50f0610777823a3ccdf1fc7a533cfa2a236102cd4973fb516d5f9f24ab",
+      "state": "generated"
+    },
+    ".github/workflows/release.yml": {
+      "sha256": "c2f4e305dc7c43121c69ce2dd0d24b04166af55a9e97a98c97d3e9f7daf88f73",
+      "state": "generated"
+    },
+    ".gitignore": {
+      "sha256": "bb460f80bb4436ee6df690c5a3b627aceff2616859752c76289ec9ea9ed8590e",
+      "state": "generated",
+      "regions": [
+        {
+          "begin": "# tf:ignore",
+          "end": "# /tf:ignore"
+        }
+      ]
+    },
+    "AGENTS.md": {
+      "sha256": "8d038a994dc1b9e4a19b1c42f83031d267001f81d33752dbf6d286ea1b45a367",
+      "state": "generated",
+      "regions": [
+        {
+          "begin": "<!-- tf:agents -->",
+          "end": "<!-- /tf:agents -->"
+        }
+      ]
+    },
+    "compose.toolfactory.yaml": {
+      "sha256": "8fb2a809a688a7694ca2bec60e945a98a208a325ddf3ca79400934088a0d2114",
+      "state": "generated"
+    },
+    "COVERAGE.md": {
+      "sha256": "feb983a0309d5fe5260fd76da50f090f5204aae43752ea22ba526461a9e0e3d0",
+      "state": "generated"
+    },
+    "dev.toolfactory/coverage.json": {
+      "sha256": "5d9d6a447227954f710cc65280b72816bfcebe72949a03800da386a650dfff8f",
+      "state": "generated"
+    },
+    "dev.toolfactory/inspector.json": {
+      "sha256": "241e19fc348e6a2cc307411d17b8e37b0b5aa96ee75c6e1e25c6d1362a25a874",
+      "state": "generated"
+    },
+    "dev.toolfactory/tool.schema.json": {
+      "sha256": "f1c24445cf1a94efbe1e60e4df6f7390bd87164374c953602256190bd09d6b9c",
+      "state": "generated"
+    },
+    "hosts/openclaw/.npmrc": {
+      "sha256": "2f460579e76dd78e75e907be8efdc26f79757e79fd895e4a5903aebe8ec5063a",
+      "state": "generated"
+    },
+    "hosts/openclaw/openclaw.plugin.json": {
+      "sha256": "e6ef525e0a72e01821adba1df109824133535665eb5d3ad439cd5a6426fede96",
+      "state": "generated",
+      "keys": [
+        "id",
+        "name",
+        "description",
+        "version",
+        "configSchema.type",
+        "configSchema.properties",
+        "configSchema.additionalProperties",
+        "activation.onStartup",
+        "contracts.tools"
+      ]
+    },
+    "hosts/openclaw/package.json": {
+      "sha256": "96818f39af069ebb52c7ac9b5c9d5f992f5756af73e86f27ae6bf87ee078098f",
+      "state": "generated",
+      "keys": [
+        "name",
+        "version",
+        "description",
+        "type",
+        "private",
+        "scripts.build",
+        "scripts.plugin:build",
+        "scripts.plugin:validate",
+        "scripts.test",
+        "files",
+        "peerDependencies.openclaw",
+        "dependencies.typebox",
+        "devDependencies.openclaw",
+        "devDependencies.typescript",
+        "devDependencies.vitest",
+        "openclaw.extensions",
+        "openclaw.compat.pluginApi",
+        "openclaw.build.openclawVersion"
+      ]
+    },
+    "hosts/openclaw/README.md": {
+      "sha256": "73ad2457e00589c042e6a887d2f5b81ef163b4ae90dfd0745f751edd4898bfdd",
+      "state": "generated"
+    },
+    "hosts/openclaw/src/index.test.ts": {
+      "sha256": "0ddbbbda609db8ade22543a9ab20f51768c6bce0922a2320ffbe60b21f669e3b",
+      "state": "generated"
+    },
+    "hosts/openclaw/src/index.ts": {
+      "sha256": "c6575a359e90ec8499b351b245b9f18ce7de43e7b9df20acfaa166bd9d6d3ad6",
+      "state": "generated",
+      "regions": [
+        {
+          "begin": "// tf:entry",
+          "end": "// /tf:entry"
+        }
+      ]
+    },
+    "hosts/openclaw/tsconfig.json": {
+      "sha256": "106c946ea50b5c1a334631ad22dbbadcc7d1c19d416d7d02fd8bff0f75b2d603",
+      "state": "generated"
+    },
+    "hosts/openclaw/vitest.config.ts": {
+      "sha256": "4f49d01f0120eff8b5bac0c9abc9bf6263c8da9834d288ff884c1e397436209f",
+      "state": "generated"
+    },
+    "README.md": {
+      "sha256": "894e186ac878c7fc6c30ac74617735b863cd06de8c487e10733847d739ce8480",
+      "state": "generated",
+      "regions": [
+        {
+          "begin": "<!-- tf:install -->",
+          "end": "<!-- /tf:install -->"
+        }
+      ]
+    },
+    "renovate.json": {
+      "sha256": "f708debb8452ad31dfcdcfb3c82d1519fe50363d614528143becd90ab55af1b9",
+      "state": "generated",
+      "keys": [
+        "$schema",
+        "extends",
+        "minimumReleaseAge",
+        "ignorePaths"
+      ]
+    },
+    "skills/groupmetoolkit/SKILL.md": {
+      "sha256": "b8bfde74f850a5471d901420928c9c110f045cda00dcdc5302ba8d5e6bdc9e47",
+      "state": "generated",
+      "regions": [
+        {
+          "begin": "---",
+          "end": "---"
+        },
+        {
+          "begin": "<!-- tf:operations -->",
+          "end": "<!-- /tf:operations -->"
+        }
+      ]
+    },
+    "src/toolfactory/cli.ts": {
+      "sha256": "af75ec94e0539b67f472e6a92d1f6f1abfa71ef979b6fa0b472fa40d092978c6",
+      "state": "generated"
+    },
+    "src/toolfactory/config.ts": {
+      "sha256": "e616f9a3f26d6611e611bb22602aa236f391f6fa9367268437b5e2388ac43cf4",
+      "state": "generated"
+    },
+    "src/toolfactory/mcp.ts": {
+      "sha256": "6cafdf4099209ff4b3fc24642fb96bb974cf6c36d2547d3a5016edfbfa0df78f",
+      "state": "generated"
+    },
+    "src/toolfactory/types.ts": {
+      "sha256": "c3e6660e64ec2e810178ddbda85b0527f8d4cc095f8065394b46c568cf846c60",
+      "state": "generated"
+    }
+  }
+}

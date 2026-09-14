@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "groupmetoolkit",
+  "version": "0.1.0",
+  "description": "Read-only GroupMe account tools usable from OpenClaw without a connected MacBook.",
+  "repository": "https://github.com/GoatInAHat/groupmetoolkit",
+  "keywords": [
+    "groupmetoolkit"
+  ]
+}
