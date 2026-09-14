@@ -7,11 +7,19 @@
     "groupmetoolkit"
   ],
   "type": "module",
+  "files": [
+    "dist",
+    "skills",
+    "plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "test": "vitest run --passWithNoTests",
     "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/live.test.ts"
   },
