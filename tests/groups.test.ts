@@ -129,6 +129,31 @@ describe("groups: mocked index read", () => {
   });
 });
 
+describe("groups: official default per_page is 10 (GROUPS_DEFAULT_PERPAGE)", () => {
+  it("returns perPage:10 count:0 for an omitted-input empty page", async () => {
+    stubFetch(async () => envelope([]));
+    const { result, error } = await callOrError(groups, {});
+    expect(error).toBeUndefined();
+    expect(result).toEqual({ page: 1, perPage: 10, count: 0, groups: [] });
+    groups.output!.parse(result);
+  });
+
+  it("returns perPage:10 count:1 for an omitted-input one-group short page", async () => {
+    stubFetch(async () => envelope([GROUP]));
+    const { result, error } = await callOrError(groups, {});
+    expect(error).toBeUndefined();
+    expect(result).toMatchObject({ page: 1, perPage: 10, count: 1 });
+    groups.output!.parse(result);
+  });
+
+  it("still echoes an explicit per_page instead of the default", async () => {
+    stubFetch(async () => envelope([]));
+    const { result, error } = await callOrError(groups, { per_page: 3 });
+    expect(error).toBeUndefined();
+    expect(result).toMatchObject({ page: 1, perPage: 3, count: 0 });
+  });
+});
+
 describe("group: mocked detail read", () => {
   it("returns the projected group shape", async () => {
     const spy = stubFetch(async () => envelope(GROUP));

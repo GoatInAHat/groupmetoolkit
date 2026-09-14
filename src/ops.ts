@@ -155,9 +155,11 @@ export const operations = [
       const groups = inner.map((element) => projectGroup(element, result.status));
       // Truthful metadata only: the validated echo and the actual count. Never total
       // or hasMore — we cannot know either from a bare array.
+      // Official GET /groups default per_page is 10 (dev.groupme.com/docs/v3#groups_index);
+      // the omitted-input page size is that constant, never the observed row count.
       return {
         page: input.page ?? 1,
-        perPage: input.per_page ?? groups.length,
+        perPage: input.per_page ?? 10,
         count: groups.length,
         groups,
       };
