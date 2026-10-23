@@ -5,6 +5,6 @@ import entry from "./index.js";
 
 describe("groupmetoolkit", () => {
   it("declares tool metadata", () => {
-    expect(getToolPluginMetadata(entry)?.tools.map((tool) => tool.name)).toEqual(["group","group_messages","groups","me"]);
+    expect(getToolPluginMetadata(entry)?.tools.map((tool) => tool.name)).toEqual(["chats","group","group_messages","groups","me","search_group_messages"]);
   });
 });

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // MCP surface smoke: tools/list via @modelcontextprotocol/inspector --cli.
-// Asserts every read-only operation (me, groups, group, group_messages) is listed with readOnlyHint=true,
-// destructiveHint=false, idempotentHint=true. Exit non-zero otherwise.
+// Asserts every read-only operation (chats, group, group_messages, groups, me, search_group_messages) is
+// listed with readOnlyHint=true, destructiveHint=false, idempotentHint=true.
+// Exit non-zero otherwise.
 import { spawnSync } from "node:child_process";
 
 const res = spawnSync(
@@ -43,7 +44,7 @@ if (!Array.isArray(tools)) {
   process.exit(1);
 }
 
-const operations = ["me", "groups", "group", "group_messages"];
+const operations = ["chats", "group", "group_messages", "groups", "me", "search_group_messages"];
 const problems = [];
 for (const name of operations) {
   const tool = tools.find((t) => t.name === name);

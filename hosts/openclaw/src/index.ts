@@ -45,6 +45,30 @@ const entry = defineToolPlugin({
   }),
   tools: (tool) => [
     tool({
+      name: "chats",
+      description: "List the authenticated user's direct-message conversations from the documented GroupMe /chats index, with pagination. Returns page, perPage, a count and the projected chats (other_user and last_message). perPage echoes only a caller-supplied per_page and is 0 when omitted: the API documents no default and no total, so no effective value is guessed. Deliberately no total, hasMore or nextPage.",
+      parameters: Type.Unsafe({
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "per_page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      }),
+      execute: async (params, config) =>
+        operation("chats").handler(params as never, {
+          config: config as Record<string, string | undefined>,
+          dataDir: dataDir(),
+        }),
+    }),
+    tool({
       name: "group",
       description: "Return one GroupMe group by numeric id. An unknown id surfaces a redacted not_found error; the payload is projected to the declared group shape.",
       parameters: Type.Unsafe({
@@ -142,6 +166,51 @@ const entry = defineToolPlugin({
       }),
       execute: async (params, config) =>
         operation("me").handler(params as never, {
+          config: config as Record<string, string | undefined>,
+          dataDir: dataDir(),
+        }),
+    }),
+    tool({
+      name: "search_group_messages",
+      description: "Search one GroupMe group's message history for a case-insensitive text substring. GroupMe v3 has no server-side search, so this is a client-side bounded scan: it pages backward with before_id, examines at most `budget` messages (clamped to 500, default 100) in pages of `limit` (clamped to 100, default 20), and stops when it has `maxMatches` matches (clamped to 100, default 25). Returns scanned/matched/pagesFetched with truthful metadata: endOfHistory is true only on upstream 304, an empty page or a short page, never when the budget or match cap stopped the scan; warnings names exactly why it stopped (budget_exhausted, match_cap_reached, progress_guard_tripped) and nextBeforeId is the last examined message id, so a continuation never skips unexamined messages. Matches only message text; attachment-only messages never match. Nothing is persisted.",
+      parameters: Type.Unsafe({
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "before_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "budget": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "maxMatches": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "group_id",
+          "query"
+        ]
+      }),
+      execute: async (params, config) =>
+        operation("search_group_messages").handler(params as never, {
           config: config as Record<string, string | undefined>,
           dataDir: dataDir(),
         }),

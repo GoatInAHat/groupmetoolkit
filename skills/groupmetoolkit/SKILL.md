@@ -11,6 +11,14 @@ Explain here when an agent should reach for this tool and how to combine its ope
 <!-- tf:operations -->
 ## Operations
 
+### chats
+
+List the authenticated user's direct-message conversations from the documented GroupMe /chats index, with pagination. Returns page, perPage, a count and the projected chats (other_user and last_message). perPage echoes only a caller-supplied per_page and is 0 when omitted: the API documents no default and no total, so no effective value is guessed. Deliberately no total, hasMore or nextPage.
+
+Arguments: `page`, `per_page`.
+
+`groupmetoolkit chats --json '<arguments>'` prints a JSON result. MCP tool `chats` on server `groupmetoolkit` returns the same result as `structuredContent`.
+
 ### group
 
 Return one GroupMe group by numeric id. An unknown id surfaces a redacted not_found error; the payload is projected to the declared group shape.
@@ -40,5 +48,13 @@ Arguments: `page`, `per_page`, `omit`.
 Return the authenticated GroupMe profile: id, name, avatar URL, and timestamps. Phone number and email are never returned.
 
 `groupmetoolkit me --json '<arguments>'` prints a JSON result. MCP tool `me` on server `groupmetoolkit` returns the same result as `structuredContent`.
+
+### search_group_messages
+
+Search one GroupMe group's message history for a case-insensitive text substring. GroupMe v3 has no server-side search, so this is a client-side bounded scan: it pages backward with before_id, examines at most `budget` messages (clamped to 500, default 100) in pages of `limit` (clamped to 100, default 20), and stops when it has `maxMatches` matches (clamped to 100, default 25). Returns scanned/matched/pagesFetched with truthful metadata: endOfHistory is true only on upstream 304, an empty page or a short page, never when the budget or match cap stopped the scan; warnings names exactly why it stopped (budget_exhausted, match_cap_reached, progress_guard_tripped) and nextBeforeId is the last examined message id, so a continuation never skips unexamined messages. Matches only message text; attachment-only messages never match. Nothing is persisted.
+
+Arguments: `group_id`, `query`, `before_id`, `limit`, `budget`, `maxMatches`.
+
+`groupmetoolkit search_group_messages --json '<arguments>'` prints a JSON result. MCP tool `search_group_messages` on server `groupmetoolkit` returns the same result as `structuredContent`.
 
 <!-- /tf:operations -->
