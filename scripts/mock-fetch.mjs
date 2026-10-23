@@ -40,6 +40,41 @@ const fixtures = {
     status: 404,
     body: { meta: { code: 404, errors: [`group ${canary} not found`] } },
   },
+  // group_messages happy path: 3 rows in server order (55 oldest -> 53 newest).
+  // 3 rows is a SHORT page for any limit > 3, so a before_id request truthfully reaches
+  // end-of-history (D012). Id 53 is attachment-only (no text key, location attachment),
+  // id 54 is image attachment with text:null.
+  messages: {
+    status: 200,
+    body: {
+      meta: { count: 3, code: 200, errors: [] },
+      response: {
+        count: 3,
+        messages: [
+          { id: "55", created_at: 1700000099, name: "alice", text: "hi", attachments: [] },
+          {
+            id: "54",
+            created_at: 1700000098,
+            name: "bob",
+            text: null,
+            attachments: [{ type: "image", url: "https://i.groupme.com/x.jpeg" }],
+          },
+          {
+            id: "53",
+            created_at: 1700000097,
+            name: "carol",
+            attachments: [{ type: "location", lat: "40.7", lng: "-74.0", name: "here" }],
+          },
+        ],
+      },
+    },
+  },
+  // group_messages end of history: upstream 304 with no body. The client maps this to a
+  // success-shaped endOfHistory result before reading any body, never an error.
+  messagesEndOfHistory: {
+    status: 304,
+    body: null,
+  },
 };
 
 if (process.env.SMOKE_GROUPME_FIXTURE) {
@@ -48,9 +83,12 @@ if (process.env.SMOKE_GROUPME_FIXTURE) {
     console.error(`mock-fetch: unknown SMOKE_GROUPME_FIXTURE ${process.env.SMOKE_GROUPME_FIXTURE}`);
     process.exit(1);
   }
-  globalThis.fetch = async () =>
-    new Response(JSON.stringify(fixture.body), {
+  globalThis.fetch = async () => {
+    // A 304 must carry no body: Response(null) is the only status-legal construction.
+    if (fixture.body === null) return new Response(null, { status: fixture.status });
+    return new Response(JSON.stringify(fixture.body), {
       status: fixture.status,
       headers: { "content-type": "application/json" },
     });
+  };
 }
