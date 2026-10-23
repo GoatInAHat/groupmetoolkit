@@ -192,6 +192,53 @@ export const chatsOutput = z.object({
   chats: z.array(chatShape),
 });
 
+export const searchGroupMessagesInput = z.object({
+  group_id: groupIdSchema,
+  // Trimmed, non-empty: an empty needle would match every text row and is a caller bug.
+  query: z.string().trim().min(1),
+  before_id: z.string().min(1).optional(),
+  // Deliberately no .max()/.min(1)/.refine on these three (D011/D013): the generated CLI
+  // and MCP surfaces run input.parse BEFORE the handler, so a bound here would REJECT
+  // instead of clamp. Every clamp is derived from the RAW handler arguments below.
+  limit: z.number().int().optional(),
+  budget: z.number().int().optional(),
+  maxMatches: z.number().int().optional(),
+});
+
+/**
+ * The bounded-scan result (R004/D013). Every stop reason is named in `warnings`, and
+ * `scanned`/`matched`/`pagesFetched` are exactly what happened — never inferred. Fields
+ * are listed in the plan order, so the serialized key order matches the contract.
+ */
+export const searchGroupMessagesOutput = z.object({
+  group_id: z.string(),
+  query: z.string(),
+  budget: z.number().int().positive(),
+  budgetClamped: z.boolean(),
+  limit: z.number().int().positive(),
+  limitClamped: z.boolean(),
+  maxMatches: z.number().int().positive(),
+  maxMatchesClamped: z.boolean(),
+  /** Rows actually examined (text compared). Never counts unexamined rows of a page. */
+  scanned: z.number().int().nonnegative(),
+  matched: z.number().int().nonnegative(),
+  pagesFetched: z.number().int().nonnegative(),
+  matches: z.array(messageShape),
+  progressGuardTripped: z.boolean(),
+  /** True only on 304, an empty page, or a short page whose rows were all examined. */
+  endOfHistory: z.boolean(),
+  /** Id of the last EXAMINED row in server order; null when exhausted or nothing examined. */
+  nextBeforeId: z.string().nullable(),
+  warnings: z.array(z.string()),
+});
+
+const SEARCH_DEFAULT_LIMIT = OFFICIAL_MESSAGES_DEFAULT_LIMIT; // 20
+const SEARCH_MAX_LIMIT = OFFICIAL_MESSAGES_MAX_LIMIT; // 100
+const SEARCH_DEFAULT_BUDGET = 100;
+const SEARCH_MAX_BUDGET = 500;
+const SEARCH_DEFAULT_MAX_MATCHES = 25;
+const SEARCH_MAX_MAX_MATCHES = 100;
+
 /** Normalize an upstream id that is documented as numeric but may arrive as a string. */
 function coerceId(value: unknown): unknown {
   if (typeof value === "string") return value;
@@ -533,6 +580,209 @@ export const operations = [
         perPage: input.per_page ?? 0,
         count: chats.length,
         chats,
+      };
+    },
+  }),
+  operation({
+    name: "search_group_messages",
+    description:
+      "Search one GroupMe group's message history for a case-insensitive text substring. GroupMe v3 has no server-side search, so this is a client-side bounded scan: it pages backward with before_id, examines at most `budget` messages (clamped to 500, default 100) in pages of `limit` (clamped to 100, default 20), and stops when it has `maxMatches` matches (clamped to 100, default 25). Returns scanned/matched/pagesFetched with truthful metadata: endOfHistory is true only on upstream 304, an empty page or a short page, never when the budget or match cap stopped the scan; warnings names exactly why it stopped (budget_exhausted, match_cap_reached, progress_guard_tripped) and nextBeforeId is the last examined message id, so a continuation never skips unexamined messages. Matches only message text; attachment-only messages never match. Nothing is persisted.",
+    input: searchGroupMessagesInput,
+    output: searchGroupMessagesOutput,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    requires: ["net"],
+    handler: async (args, ctx) => {
+      const input = searchGroupMessagesInput.parse(args);
+
+      // All clamps are derived from the RAW handler arguments (D011/D013): the generated
+      // CLI/MCP surfaces run input.parse before the handler, so the schema has no bounds.
+      // An invalid value is defaulted and named in warnings; it is never rejected.
+      const raw = args as Record<string, unknown>;
+      const warnings: string[] = [];
+
+      const rawLimitValue = raw["limit"];
+      const rawLimit = Number(rawLimitValue);
+      const rawLimitValid = Number.isInteger(rawLimit) && rawLimit > 0;
+      const effectiveLimit = rawLimitValid ? Math.min(rawLimit, SEARCH_MAX_LIMIT) : SEARCH_DEFAULT_LIMIT;
+      const limitClamped = rawLimitValid && effectiveLimit !== rawLimit;
+      if (rawLimitValue !== undefined && !rawLimitValid) warnings.push("limit_invalid_defaulted_20");
+
+      const rawBudgetValue = raw["budget"];
+      const rawBudget = Number(rawBudgetValue);
+      const rawBudgetValid = Number.isInteger(rawBudget) && rawBudget > 0;
+      const effectiveBudget = rawBudgetValid ? Math.min(rawBudget, SEARCH_MAX_BUDGET) : SEARCH_DEFAULT_BUDGET;
+      const budgetClamped = rawBudgetValid && effectiveBudget !== rawBudget;
+      if (rawBudgetValue !== undefined && !rawBudgetValid) warnings.push("budget_invalid_defaulted_100");
+
+      const rawMaxMatchesValue = raw["maxMatches"];
+      const rawMaxMatches = Number(rawMaxMatchesValue);
+      const rawMaxMatchesValid = Number.isInteger(rawMaxMatches) && rawMaxMatches > 0;
+      const effectiveMaxMatches = rawMaxMatchesValid ? Math.min(rawMaxMatches, SEARCH_MAX_MAX_MATCHES) : SEARCH_DEFAULT_MAX_MATCHES;
+      const maxMatchesClamped = rawMaxMatchesValid && effectiveMaxMatches !== rawMaxMatches;
+      if (rawMaxMatchesValue !== undefined && !rawMaxMatchesValid) {
+        warnings.push("maxMatches_invalid_defaulted_25");
+      }
+
+      const query = input.query.toLowerCase();
+      // Defensive page ceiling: the budget arithmetic normally stops first.
+      const maxPages = Math.ceil(effectiveBudget / effectiveLimit);
+
+      let cursor: string | undefined = input.before_id;
+      let rowsExamined = 0;
+      let pagesFetched = 0;
+      const matches: Array<z.infer<typeof messageShape>> = [];
+      let endOfHistory = false;
+      let nextBeforeId: string | null = null;
+      let progressGuardTripped = false;
+      let budgetExhausted = false;
+      let matchCapReached = false;
+      let stopped = false;
+
+      while (!stopped && pagesFetched < maxPages) {
+        // Sequential pages only (order matters, GroupMe rate limits are unpublished). The
+        // ONLY query params ever sent are before_id and limit: GroupMe has no server-side
+        // search (D003), so query/text/q must never reach /messages.
+        const result = await groupmeFetch({
+          fetchImpl: fetch,
+          token: ctx.config["GROUPME_ACCESS_TOKEN"],
+          path: `/groups/${input.group_id}/messages`,
+          query: { before_id: cursor, limit: effectiveLimit },
+        });
+        pagesFetched++;
+
+        // 304 is end-of-history for a before_id scan, never an error (D005/D012).
+        if (result.endOfHistory) {
+          endOfHistory = true;
+          nextBeforeId = null;
+          stopped = true;
+          break;
+        }
+
+        // Same validation as group_messages: an object envelope with an array `messages`,
+        // each element projected and validated. Any failure is ONE redacted
+        // malformed_response — Zod issue text is upstream-derived and never surfaced.
+        const inner = result.response;
+        if (inner === null || typeof inner !== "object") {
+          throw new GroupMeError({ code: "malformed_response", status: result.status });
+        }
+        const envelope = inner as Record<string, unknown>;
+        const rawMessages = envelope["messages"];
+        if (!Array.isArray(rawMessages)) {
+          throw new GroupMeError({ code: "malformed_response", status: result.status });
+        }
+        const page: Array<z.infer<typeof messageShape>> = [];
+        for (const element of rawMessages) {
+          const projection = messageShape.safeParse(element);
+          if (!projection.success) {
+            throw new GroupMeError({ code: "malformed_response", status: result.status });
+          }
+          page.push(projection.data);
+        }
+        // Upstream meta.count disagreement is reported once, never fatal.
+        const rawCount = envelope["count"];
+        const upstreamCount = typeof rawCount === "number" && Number.isFinite(rawCount) ? rawCount : null;
+        if (upstreamCount !== null && upstreamCount !== page.length && !warnings.includes("meta_count_mismatch")) {
+          warnings.push("meta_count_mismatch");
+        }
+
+        if (page.length === 0) {
+          endOfHistory = true;
+          nextBeforeId = null;
+          stopped = true;
+          break;
+        }
+
+        // Examine rows in SERVER ORDER until the budget runs out. A before_id page arrives
+        // descending (newest first, oldest last), so the last row is the oldest examined and
+        // the continuation cursor. Unexamined rows of that page are neither examined nor counted.
+        let examinedOnPage = 0;
+        for (const row of page) {
+          if (rowsExamined === effectiveBudget) break;
+          rowsExamined++;
+          examinedOnPage++;
+          if (typeof row.text === "string" && row.text.toLowerCase().includes(query)) {
+            matches.push(row);
+            if (matches.length === effectiveMaxMatches) {
+              matchCapReached = true;
+              break;
+            }
+          }
+        }
+
+        // nextBeforeId: the id of the last row actually examined on this page (MEM021/MEM037).
+        // It never points past an unexamined row, so a continuation skips nothing.
+        nextBeforeId = page[examinedOnPage - 1].id;
+
+        if (matchCapReached) {
+          stopped = true;
+          break;
+        }
+
+        if (rowsExamined === effectiveBudget) {
+          // A full page with unexamined rows left means more history MAY exist; a short page
+          // means the scan genuinely reached the oldest message. Only the former is
+          // incomplete, so only it warns budget_exhausted.
+          if (page.length < effectiveLimit) {
+            endOfHistory = true;
+            nextBeforeId = null;
+          } else {
+            budgetExhausted = true;
+          }
+          stopped = true;
+          break;
+        }
+
+        if (page.length < effectiveLimit) {
+          endOfHistory = true;
+          nextBeforeId = null;
+          stopped = true;
+          break;
+        }
+
+        // Full page, fully examined, budget remains: continue strictly older. The page is
+        // descending, so its LAST element is the oldest row: requesting before_id there is
+        // the only cursor that skips nothing. The first element is the newest row, which a
+        // before_id request would return again (that is the progress-guard trap).
+        const nextCursor = page[page.length - 1].id;
+        if (cursor !== undefined && compareIds(nextCursor, cursor) >= 0) {
+          // Upstream did not move the cursor: stop rather than loop forever (D012/MEM021).
+          progressGuardTripped = true;
+          warnings.push("progress_guard_tripped");
+          stopped = true;
+          break;
+        }
+        cursor = nextCursor;
+      }
+
+      // The defensive page ceiling stopped a budget that was not exhausted.
+      if (!stopped && rowsExamined < effectiveBudget && !endOfHistory) {
+        budgetExhausted = true;
+      }
+      if (budgetExhausted) warnings.push("budget_exhausted");
+      if (matchCapReached) warnings.push("match_cap_reached");
+
+      return {
+        group_id: input.group_id,
+        query: input.query,
+        budget: effectiveBudget,
+        budgetClamped,
+        limit: effectiveLimit,
+        limitClamped,
+        maxMatches: effectiveMaxMatches,
+        maxMatchesClamped,
+        scanned: rowsExamined,
+        matched: matches.length,
+        pagesFetched,
+        matches,
+        progressGuardTripped,
+        endOfHistory,
+        nextBeforeId,
+        warnings,
       };
     },
   }),
