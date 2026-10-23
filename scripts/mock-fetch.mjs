@@ -75,6 +75,39 @@ const fixtures = {
     status: 304,
     body: null,
   },
+  // chats happy path: one DM conversation. other_user.id is NUMERIC (as in the official
+  // example) and must be normalized to the string "777"; last_message carries text:null
+  // plus an image attachment and the upstream-only conversation keys (sender_id,
+  // recipient_id, conversation_id) which projection must drop from the result.
+  chats: {
+    status: 200,
+    body: {
+      meta: { code: 200, errors: [] },
+      response: [
+        {
+          id: "chat-abc",
+          created_at: 1700000000,
+          updated_at: 1700000500,
+          other_user: { id: 777, name: "Dana", image_url: "https://i.groupme.com/avatars/d.jpeg" },
+          last_message: {
+            id: "msg-1",
+            sender_id: "777",
+            recipient_id: "111",
+            conversation_id: "chat-abc",
+            created_at: 1700000499,
+            name: "Dana",
+            text: null,
+            attachments: [{ type: "image", url: "https://i.groupme.com/x.jpeg" }],
+          },
+        },
+      ],
+    },
+  },
+  // chats with no conversations: a bare empty array (no total anywhere in the payload).
+  chatsEmpty: {
+    status: 200,
+    body: { meta: { code: 200, errors: [] }, response: [] },
+  },
 };
 
 if (process.env.SMOKE_GROUPME_FIXTURE) {

@@ -155,6 +155,89 @@ function expectArrayResponse(inner: unknown, status: number): unknown[] {
   return inner;
 }
 
+export const chatsInput = z.object({
+  page: z.number().int().positive().optional(),
+  per_page: z.number().int().positive().optional(),
+});
+
+/**
+ * The DM conversation counterpart of a chat participant (D014). Upstream ids are numeric in
+ * the official /chats example while ids elsewhere are strings, so the handler normalizes
+ * other_user.id to a string before validation.
+ */
+export const chatUserShape = z.object({
+  id: z.string(),
+  name: z.string(),
+  image_url: z.string().nullable(),
+});
+
+/**
+ * One direct-message conversation projected to the declared subset (R005/D014). Plain
+ * z.object (not strict) so upstream-only conversation keys (sender_id, recipient_id,
+ * conversation_id, group_id, ...) are dropped by projection. `text` is optional/nullable
+ * for attachment-only messages; attachments are polymorphic and pass through unvalidated.
+ */
+export const chatShape = z.object({
+  id: z.string(),
+  created_at: z.number(),
+  updated_at: z.number(),
+  other_user: chatUserShape,
+  last_message: messageShape,
+});
+
+export const chatsOutput = z.object({
+  page: z.number().int().positive(),
+  perPage: z.number().int().nonnegative(),
+  count: z.number().int().nonnegative(),
+  chats: z.array(chatShape),
+});
+
+/** Normalize an upstream id that is documented as numeric but may arrive as a string. */
+function coerceId(value: unknown): unknown {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return value;
+}
+
+/** Project one /chats row to the declared subset, or throw redacted malformed_response. */
+function projectChat(inner: unknown, status: number): z.infer<typeof chatShape> {
+  if (inner === null || typeof inner !== "object") {
+    throw new GroupMeError({ code: "malformed_response", status });
+  }
+  const row = inner as Record<string, unknown>;
+  const otherUser = row["other_user"];
+  const lastMessage = row["last_message"];
+  if (otherUser === null || typeof otherUser !== "object" || lastMessage === null || typeof lastMessage !== "object") {
+    throw new GroupMeError({ code: "malformed_response", status });
+  }
+  const other = otherUser as Record<string, unknown>;
+  const message = lastMessage as Record<string, unknown>;
+  // Project first, then validate — a 200 whose row fails the shape is malformed_response,
+  // never a successful object with holes. Zod issue text is upstream-derived, so only the
+  // redacted envelope is surfaced.
+  const projection = chatShape.safeParse({
+    id: row["id"],
+    created_at: row["created_at"],
+    updated_at: row["updated_at"],
+    other_user: {
+      id: coerceId(other["id"]),
+      name: other["name"],
+      image_url: other["image_url"],
+    },
+    last_message: {
+      id: message["id"],
+      created_at: message["created_at"],
+      name: message["name"],
+      text: message["text"],
+      attachments: message["attachments"],
+    },
+  });
+  if (!projection.success) {
+    throw new GroupMeError({ code: "malformed_response", status });
+  }
+  return projection.data;
+}
+
 function projectGroup(inner: unknown, status: number): z.infer<typeof groupShape> {
   if (status === 304 || inner === null || typeof inner !== "object") {
     throw new GroupMeError({ code: "malformed_response", status });
@@ -414,6 +497,42 @@ export const operations = [
           progressGuardTripped,
           upstreamCount,
         },
+      };
+    },
+  }),
+  operation({
+    name: "chats",
+    description:
+      "List the authenticated user's direct-message conversations from the documented GroupMe /chats index, with pagination. Returns page, perPage, a count and the projected chats (other_user and last_message). perPage echoes only a caller-supplied per_page and is 0 when omitted: the API documents no default and no total, so no effective value is guessed. Deliberately no total, hasMore or nextPage.",
+    input: chatsInput,
+    output: chatsOutput,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    requires: ["net"],
+    handler: async (args, ctx) => {
+      const input = chatsInput.parse(args);
+      const result = await groupmeFetch({
+        fetchImpl: fetch,
+        token: ctx.config["GROUPME_ACCESS_TOKEN"],
+        path: "/chats",
+        query: { page: input.page, per_page: input.per_page },
+      });
+      // A 304 from /chats is meaningless (no conditional semantics documented) and a
+      // non-array body is malformed: both are redacted malformed_response, never an empty page.
+      const inner = expectArrayResponse(result.response, result.status);
+      const chats = inner.map((element) => projectChat(element, result.status));
+      // Truthful metadata only (D014/D010): the documented index has no total and no
+      // documented default per_page, so perPage echoes ONLY the caller's request (0 when
+      // omitted) and never the observed row count or a guessed constant.
+      return {
+        page: input.page ?? 1,
+        perPage: input.per_page ?? 0,
+        count: chats.length,
+        chats,
       };
     },
   }),
