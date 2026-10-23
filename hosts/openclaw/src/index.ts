@@ -45,6 +45,95 @@ const entry = defineToolPlugin({
   }),
   tools: (tool) => [
     tool({
+      name: "group",
+      description: "Return one GroupMe group by numeric id. An unknown id surfaces a redacted not_found error; the payload is projected to the declared group shape.",
+      parameters: Type.Unsafe({
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }),
+      execute: async (params, config) =>
+        operation("group").handler(params as never, {
+          config: config as Record<string, string | undefined>,
+          dataDir: dataDir(),
+        }),
+    }),
+    tool({
+      name: "group_messages",
+      description: "Read one page of a GroupMe group's message history: projected message ids, timestamps, author names, text and attachments. Supply at most one cursor (before_id = older history, after_id = immediate newer, since_id = newest only); limit is clamped to the official max of 100 (default 20). Pagination metadata is direction-scoped: endOfHistory is only claimed for before_id/latest pages on upstream 304 or a short page, and a non-advancing cursor stops with progressGuardTripped. Nothing is persisted.",
+      parameters: Type.Unsafe({
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "before_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "after_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "since_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "group_id"
+        ]
+      }),
+      execute: async (params, config) =>
+        operation("group_messages").handler(params as never, {
+          config: config as Record<string, string | undefined>,
+          dataDir: dataDir(),
+        }),
+    }),
+    tool({
+      name: "groups",
+      description: "List the authenticated user's GroupMe groups with pagination. Returns the validated page/per-page echo, a count, and the projected groups. Deliberately no total or hasMore: a bare-array index has no total, and a full page only implies an unknown next page, never a confirmed one.",
+      parameters: Type.Unsafe({
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "per_page": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "omit": {
+            "type": "string",
+            "enum": [
+              "memberships"
+            ]
+          }
+        }
+      }),
+      execute: async (params, config) =>
+        operation("groups").handler(params as never, {
+          config: config as Record<string, string | undefined>,
+          dataDir: dataDir(),
+        }),
+    }),
+    tool({
       name: "me",
       description: "Return the authenticated GroupMe profile: id, name, avatar URL, and timestamps. Phone number and email are never returned.",
       parameters: Type.Unsafe({

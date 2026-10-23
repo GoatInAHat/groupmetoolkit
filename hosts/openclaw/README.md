@@ -35,4 +35,7 @@ and changes nothing (openclaw 2026.8.2).
 
 ## Tools
 
+- `group` — Return one GroupMe group by numeric id. An unknown id surfaces a redacted not_found error; the payload is projected to the declared group shape. (native)
+- `group_messages` — Read one page of a GroupMe group's message history: projected message ids, timestamps, author names, text and attachments. Supply at most one cursor (before_id = older history, after_id = immediate newer, since_id = newest only); limit is clamped to the official max of 100 (default 20). Pagination metadata is direction-scoped: endOfHistory is only claimed for before_id/latest pages on upstream 304 or a short page, and a non-advancing cursor stops with progressGuardTripped. Nothing is persisted. (native)
+- `groups` — List the authenticated user's GroupMe groups with pagination. Returns the validated page/per-page echo, a count, and the projected groups. Deliberately no total or hasMore: a bare-array index has no total, and a full page only implies an unknown next page, never a confirmed one. (native)
 - `me` — Return the authenticated GroupMe profile: id, name, avatar URL, and timestamps. Phone number and email are never returned. (native)

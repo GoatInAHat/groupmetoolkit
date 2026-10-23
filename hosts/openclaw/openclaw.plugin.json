@@ -24,6 +24,9 @@
   },
   "contracts": {
     "tools": [
+      "group",
+      "group_messages",
+      "groups",
       "me"
     ]
   },
