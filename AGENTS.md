@@ -17,6 +17,10 @@ One paragraph: what an agent working in this repo should know before touching `s
 
 - `src/ops.ts` — your operations, the only hand-written source. Everything else here is a
   generated projection of it plus `dev.toolfactory/tool.json`.
+- Auth route: `GROUPME_ACCESS_TOKEN` is a sensitive toolfactory config input, vault-backed and
+  injected by hosts. It is consumed via `context().config["GROUPME_ACCESS_TOKEN"]` and sent
+  only in the `X-Access-Token` header; it must never appear in URLs, logs, errors, fixtures,
+  or outputs. Missing auth surfaces a structured `auth_error` with no network call.
 - `dev.toolfactory/` — the operation snapshot, coverage verdicts and the generation lock;
   never hand-edit (`toolfactory adopt <path>` first if you must).
 - `.agents/` — the agent-config canon: `skills/`, `mcp/servers.json`, `setup`, `sync.py`.

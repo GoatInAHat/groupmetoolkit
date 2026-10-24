@@ -87,24 +87,18 @@
     },
     "AGENTS.md": {
       "sha256": "8d038a994dc1b9e4a19b1c42f83031d267001f81d33752dbf6d286ea1b45a367",
-      "state": "generated",
-      "regions": [
-        {
-          "begin": "<!-- tf:agents -->",
-          "end": "<!-- /tf:agents -->"
-        }
-      ]
+      "state": "manual"
     },
     "compose.toolfactory.yaml": {
       "sha256": "8fb2a809a688a7694ca2bec60e945a98a208a325ddf3ca79400934088a0d2114",
       "state": "generated"
     },
     "COVERAGE.md": {
-      "sha256": "8fb9b785061c504e3cd03f456209badb27a637a024c11c2a01d248adf250501a",
+      "sha256": "1aa0239bbc18a8209dc69772e8b9415c244c5fd8070495f2c8c9c2f3d9212066",
       "state": "generated"
     },
     "dev.toolfactory/coverage.json": {
-      "sha256": "b129deeb2375bc57604221396b061ea1afbd4c01c7e67c5e712e9a4aa923475f",
+      "sha256": "bb5698832aeed00180d4fd36ca7efc45c537da7dcd7a8e4dc058ffdf2592c587",
       "state": "generated"
     },
     "dev.toolfactory/inspector.json": {
@@ -120,7 +114,7 @@
       "state": "generated"
     },
     "hosts/openclaw/openclaw.plugin.json": {
-      "sha256": "27812e801fc36aa1705b389f6fd42d5c3fafa555a65a3949e5af3097c2023475",
+      "sha256": "a72f37eb29f7a68ebf3e9ac1096d297e8aba7a0f404cba0cb11f2128c1f9312c",
       "state": "generated",
       "keys": [
         "id",
@@ -163,15 +157,15 @@
       ]
     },
     "hosts/openclaw/README.md": {
-      "sha256": "6b71ae7fe204658b0be2fe07ee58c865fa0ad5631225fe956f3a6e83526eac93",
+      "sha256": "65ff2cb2242aa0e73b657349f25b5b303a36b4b86bd03ad181c36ded2e3cea73",
       "state": "generated"
     },
     "hosts/openclaw/src/index.test.ts": {
-      "sha256": "133227a5d240ef92c6e0b40b3f6c89e9a8c6d11b51197e1fb9bba36d3b3abe4b",
+      "sha256": "b7738888ca90220bbb11bd47f9703c8bcfc7bdedcb47562dd4768009f080f37b",
       "state": "generated"
     },
     "hosts/openclaw/src/index.ts": {
-      "sha256": "c7606e3f9a497800fb0bc6098bad0f34bb7950a7941e42388c3e3bf5a5d4a1cd",
+      "sha256": "a9abf3d3ca2aa5d736d8b361ca0dd98237715428f689723b88ad1de8edbe7823",
       "state": "generated",
       "regions": [
         {
@@ -209,7 +203,7 @@
       ]
     },
     "skills/groupmetoolkit/SKILL.md": {
-      "sha256": "c692a91d6529d1628c52c6ef5dd7df85f66423888e21d9e9acb90e3104c7e7d6",
+      "sha256": "8f3dcb21ee27d07acf5d0c8c9df65c34cce9c5416a12c1e234984b33204c7cff",
       "state": "generated",
       "regions": [
         {

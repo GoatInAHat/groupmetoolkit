@@ -8,6 +8,18 @@ description: Read-only GroupMe account tools usable from OpenClaw without a
 
 Explain here when an agent should reach for this tool and how to combine its operations.
 
+<!-- tf:auth -->
+## Authentication
+
+All operations are strictly read-only and authenticate with `GROUPME_ACCESS_TOKEN`, sent only
+in the `X-Access-Token` header to the fixed official GroupMe host. The token is a sensitive
+toolfactory config input consumed via `context().config` and is vault-backed: hosts inject the
+value, so it never appears in URLs, logs, errors, fixtures, or outputs. With no token
+configured, every operation surfaces a clear structured `auth_error` with no network call;
+each failure mode surfaces a distinct redacted error code.
+
+<!-- /tf:auth -->
+
 <!-- tf:operations -->
 ## Operations
 

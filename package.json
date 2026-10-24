@@ -21,6 +21,7 @@
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
     "test": "vitest run --passWithNoTests",
+    "test:integration": "node scripts/test-integration.mjs",
     "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/live.test.ts"
   },
   "dependencies": {

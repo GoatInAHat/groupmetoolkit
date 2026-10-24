@@ -24,10 +24,12 @@
   },
   "contracts": {
     "tools": [
+      "chats",
       "group",
       "group_messages",
       "groups",
-      "me"
+      "me",
+      "search_group_messages"
     ]
   },
   "configContracts": {
