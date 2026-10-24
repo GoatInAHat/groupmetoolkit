@@ -21,10 +21,12 @@ Factory config input and it is **vault-only**: hosts inject it from their vault,
 chat message, a prompt, a committed `.env`, a GitHub Actions secret, a fixture, a log line or an
 error payload. Core never acquires a credential by itself.
 
-- Consumed at exactly one place: `context().config["GROUPME_ACCESS_TOKEN"]` inside the operations.
-- Sent at exactly one place: the `X-Access-Token` request header of a GET to the fixed official
-  host `https://api.groupme.com` — never in a URL or query string, never as an `Authorization`
-  header, never as `Bearer`.
+- Consumed through exactly one mechanism: `context().config["GROUPME_ACCESS_TOKEN"]` inside the
+  operations — never from `process.env`, a file, an argument or a literal. Each operation
+  passes that value straight to the client, so the token crosses no other boundary.
+- Sent at exactly one place: the single `X-Access-Token` request header built in
+  `src/groupme/client.ts` for a GET to the fixed official host `https://api.groupme.com` —
+  never in a URL or query string, never as an `Authorization` header, never as `Bearer`.
 - Never appears in URLs, logs, errors, fixtures or outputs. Errors are redacted structured
   envelopes: `GroupMeError.message` IS the JSON `{"code":...}` text, upstream `meta.errors`
   entries are scrubbed of the request token, and diagnostic causes have the token scrubbed
@@ -40,8 +42,10 @@ already disclosed. If one is shared that way, treat it as compromised and rotate
 through the host's vault-backed config instead, and let the host inject it.
 
 The route is enforced, not just documented: `npm run test:token-route`
-(`scripts/check-token-leak.mjs`, run `npm run build` first) asserts the single read site and
-single send site, that no token-shaped query parameter exists in `src/`, and that every upstream
+(`scripts/check-token-leak.mjs`, run `npm run build` first) asserts that every read of the token
+is the `ctx.config` lookup (allowing only `src/ops.ts` and the generated host-injection
+boundary `src/toolfactory/config.ts`), the single send site, that no token-shaped query
+parameter exists in `src/`, and that every upstream
 error surface — message, `errors` list and attached cause — is scrubbed of a sentinel token when
 `fetch` is stubbed to echo it. If you are changing how a request is built or how an error is
 formed, run it: it fails when a token value could reach a URL, a log, an error or an output.

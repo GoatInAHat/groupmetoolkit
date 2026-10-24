@@ -12,9 +12,10 @@ value): the token is sent only in the `X-Access-Token` header, consumed via
 auth surfaces a structured `missing_auth` with no network call.
 
 The same route is documented for agents in the skill body, `skills/groupmetoolkit/SKILL.md`
-(section "Authentication: the vault-only token route"): one read site
-(`context().config["GROUPME_ACCESS_TOKEN"]`), one send site (the `X-Access-Token` header of
-GETs to `https://api.groupme.com`), and no token anywhere else.
+(section "Authentication: the vault-only token route"): one read mechanism
+(`context().config["GROUPME_ACCESS_TOKEN"]`, never `process.env`, a file, an argument or a
+literal), one send site (the single `X-Access-Token` header of GETs to
+`https://api.groupme.com` in `src/groupme/client.ts`), and no token anywhere else.
 
 ## Status
 
@@ -96,11 +97,13 @@ section's prose. A grep for `GROUPME_ACCESS_TOKEN` cannot prove the route — th
 legitimately in `src/`. What must never appear is the token *value*, so the check asserts three
 things:
 
-- **Static structure.** The token is read only as `ctx.config["GROUPME_ACCESS_TOKEN"]` (the
-generated `src/toolfactory/config.ts` is the single env-injection boundary); no `?access_token=`
-or `?token=` query parameter exists anywhere in `src/`; `src/groupme/client.ts` builds exactly
-one `X-Access-Token` header on a `GET` and keeps `scrubToken`/`redactUpstreamErrors`/
-`redactCause` wired; no 32-hex credential-shaped literal sits in source.
+- **Static structure.** Every read of the token is the `ctx.config["GROUPME_ACCESS_TOKEN"]`
+lookup: the check allows only `src/ops.ts` (the operations, one lookup per operation) and the
+generated `src/toolfactory/config.ts` (the single env-injection boundary), and fails on any other
+read site or on a direct `process.env` read; no `?access_token=` or `?token=` query parameter
+exists anywhere in `src/`; `src/groupme/client.ts` builds exactly one `X-Access-Token` header on
+a `GET` and keeps `scrubToken`/`redactUpstreamErrors`/`redactCause` wired; no 32-hex
+credential-shaped literal sits in source.
 - **Missing auth, on the built CLI.** `me` with the token scrubbed exits `1` with the parseable
 `{"code":"missing_auth"}` envelope and no credential noise.
 - **Present auth, at the handler layer.** With a sentinel token configured and `fetch` stubbed to

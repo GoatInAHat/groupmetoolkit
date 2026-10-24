@@ -44,7 +44,10 @@ converts it into one of them before the call.
 One contract, three documents: the skill body ("Authentication: the vault-only token route"),
 README ("Token setup (vault-only)") and the Layout bullet above all say the same thing.
 
-- **Read site, exactly one:** `context().config["GROUPME_ACCESS_TOKEN"]` in `src/ops.ts`.
+- **Read mechanism, exactly one:** `context().config["GROUPME_ACCESS_TOKEN"]`. Read sites are
+  the operations in `src/ops.ts` (one lookup each, passed straight to the client) plus the
+  generated host-injection boundary `src/toolfactory/config.ts` and nothing else — no
+  `process.env`, file, argument or literal read anywhere in `src/`.
 - **Send site, exactly one:** the `X-Access-Token` header of a GET to
   `https://api.groupme.com` in `src/groupme/client.ts`.
 - **Never** in logs, errors, fixtures or outputs: `GroupMeError.message` is the redacted JSON
@@ -58,7 +61,8 @@ credential-free surface lane `npm run test:surface` (`scripts/smoke-cli-list.mjs
 `scripts/smoke-mcp-surface.mjs`, `scripts/smoke-missing-auth.mjs`), and the token-route leak
 check `npm run test:token-route` (`scripts/check-token-leak.mjs`). The leak check exists
 because a grep cannot prove this route: the token NAME appears legitimately in `src/`, so the
-check asserts the token VALUE's absence — one read site, one send site, no token-shaped query
+check asserts the token VALUE's absence — every read through `ctx.config` (only `src/ops.ts`
+and the generated `src/toolfactory/config.ts` are allowed), one send site, no token-shaped query
 parameter, and every upstream error surface (message, `errors`, cause) scrubbed to
 `[redacted]` when `fetch` is stubbed to echo a sentinel token. Never supply a credential to
 make a portable check pass.
