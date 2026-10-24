@@ -133,6 +133,24 @@ operation fails fast with a structured `missing_auth` error and makes no network
 holds for all six operations on both surfaces, and `tests/surface-contract.test.ts` plus the two
 smokes above keep it true for any operation added later.
 
+### One-time setup
+
+The token is stored once, by the host's vault, and never handled by the tool. Use **either**:
+
+- the native masked OpenClaw secret collection (prompted entry, never echoed), **or**
+- a local no-echo terminal prompt piped directly into the store, so the value exists only in
+  the vault:
+
+  ```sh
+  read -rs GROUPME_ACCESS_TOKEN
+  printf '%s' "$GROUPME_ACCESS_TOKEN" | openclaw secrets store set GROUPME_ACCESS_TOKEN --kind secret --allow-host api.groupme.com --value-file -
+  ```
+
+`--allow-host api.groupme.com` binds the secret to the one host the client calls. A token is
+never typed into chat and never written to a file; `toolfactory bootstrap-repo` is never used for
+secrets. The command text above is the only form to document — never an example carrying a real
+value.
+
 ## What is not available yet
 
 The package is **unpublished**: there is no npm tarball, no tag and no release. The generated

@@ -54,6 +54,12 @@ README ("Token setup (vault-only)") and the Layout bullet above all say the same
   `{"code":...}` envelope, and upstream `meta.errors` plus attached causes are scrubbed of the
   token before they leave the client.
 - **No token means no call:** `missing_auth` is raised before the first `fetch`.
+- **One-time setup, vault-only:** either the native masked OpenClaw secret collection (prompted,
+  never echoed), or a local no-echo terminal prompt piped directly into
+  `openclaw secrets store set GROUPME_ACCESS_TOKEN --kind secret --allow-host api.groupme.com --value-file -`
+  (with `read -rs` feeding stdin). Never type a token into chat and never write it to a file;
+  `toolfactory bootstrap-repo` is never used for secrets. Document the command text only, never
+  a secret-bearing example.
 
 Enforcement: the cross-operation handler invariant in `tests/surface-contract.test.ts`
 (`missing_auth`, zero fetches, no credential/header noise, no attached cause), the

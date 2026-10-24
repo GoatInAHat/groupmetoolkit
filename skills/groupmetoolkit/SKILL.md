@@ -41,6 +41,19 @@ An agent must never ask a user to paste a token into a conversation: a token typ
 already disclosed. If one is shared that way, treat it as compromised and rotate it. Configure it
 through the host's vault-backed config instead, and let the host inject it.
 
+One-time setup is vault-only, either of:
+
+- the native masked OpenClaw secret collection (prompted entry, never echoed), or
+- a local no-echo terminal prompt piped directly into the store:
+
+  ```sh
+  read -rs GROUPME_ACCESS_TOKEN
+  printf '%s' "$GROUPME_ACCESS_TOKEN" | openclaw secrets store set GROUPME_ACCESS_TOKEN --kind secret --allow-host api.groupme.com --value-file -
+  ```
+
+A token is never typed into chat and never written to a file, and `toolfactory bootstrap-repo`
+is never used for secrets.
+
 The route is enforced, not just documented: `npm run test:token-route`
 (`scripts/check-token-leak.mjs`, run `npm run build` first) asserts that every read of the token
 is the `ctx.config` lookup (allowing only `src/ops.ts` and the generated host-injection
