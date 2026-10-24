@@ -22,6 +22,7 @@
     "prepack": "npm run build",
     "test": "vitest run --passWithNoTests",
     "test:integration": "node scripts/test-integration.mjs",
+    "test:surface": "node scripts/smoke-cli-list.mjs && node scripts/smoke-mcp-surface.mjs && node scripts/smoke-missing-auth.mjs",
     "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/live.test.ts"
   },
   "dependencies": {

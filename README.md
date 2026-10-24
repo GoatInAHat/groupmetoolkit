@@ -43,6 +43,7 @@ npx toolfactory validate
 # 4. Tests, split by lane
 npm test             # portable core suite: tests/**/*.test.ts, no host deps, Node 22+
 npm run test:integration   # native OpenClaw host suite, Node 24 only
+npm run test:surface       # built CLI/MCP listing + missing-auth smokes, no credential
 ```
 
 `npm test` deliberately discovers only `tests/**/*.test.ts`. The native host tests live under
@@ -63,6 +64,24 @@ node dist/toolfactory/mcp.js     # MCP stdio server
 ```
 
 `node dist/toolfactory/cli.js --help` lists every operation and exits 0 without a credential.
+
+### Surface smokes
+
+`npm run test:surface` proves the **built** artifact (run `npm run build` first) on both
+surfaces, credential-free and offline:
+
+- `scripts/smoke-cli-list.mjs` — `node dist/toolfactory/cli.js --help` lists all six
+  operations plus the `mcp` subcommand, and `group_messages --help` exposes the
+  schema-derived flags.
+- `scripts/smoke-mcp-surface.mjs` — drives the real MCP protocol in-process over
+  `InMemoryTransport` against `dist/toolfactory/mcp.js` with `@modelcontextprotocol/client`
+  (already a local dependency; no `npx` fetch). Asserts all six tools in `tools/list` with
+  `readOnlyHint=true`, `destructiveHint=false`, `idempotentHint=true`, `openWorldHint=true`;
+  then each `tools/call` without a token returns an **error** result carrying
+  `missing_auth` while a `fetch` tripwire records **zero** network attempts.
+- `scripts/smoke-missing-auth.mjs` — every operation on the built CLI without a token exits
+  exactly `1`, prints the structured `{"code":"missing_auth"}` envelope on stderr, makes no
+  network call and leaks no credential/header noise.
 
 ## Token setup (vault-only)
 
@@ -98,9 +117,10 @@ it needs the vault-backed token, which an automated checkout must never acquire.
 call, so a real-account round trip cannot be performed here. Do not supply a credential as
 part of a portable check.
 
-Last offline evidence (mocked suite, no credential): `npm test` 151 passed / 1 skipped (the
-credential-gated `live` case), `npm run test:integration` host suite passed on Node 24, and
-every Tool Factory gate green. The checkout's manifest declares all six tools.
+Last offline evidence (mocked suite, no credential): `npm test` 166 passed / 1 skipped (the
+credential-gated `live` case), `npm run test:surface` green on the built CLI and MCP surfaces,
+`npm run test:integration` host suite passed on Node 24, and every Tool Factory gate green.
+The checkout's manifest declares all six tools.
 
 Runtime surface acceptance is separate and can be inspected without a credential. The installed
 plugin has loaded and declares all six operations:
