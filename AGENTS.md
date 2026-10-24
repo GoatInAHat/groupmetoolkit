@@ -19,10 +19,17 @@ One paragraph: what an agent working in this repo should know before touching `s
   generated projection of it plus `dev.toolfactory/tool.json`.
 - Auth route: `GROUPME_ACCESS_TOKEN` is a sensitive toolfactory config input, vault-backed and
   injected by hosts. It is consumed via `context().config["GROUPME_ACCESS_TOKEN"]` and sent
-  only in the `X-Access-Token` header; it must never appear in URLs, logs, errors, fixtures,
-  or outputs. Missing auth surfaces a structured `auth_error` with no network call.
+  only in the `X-Access-Token` header to the fixed host `https://api.groupme.com`; it must never
+  appear in URLs, query strings, `Authorization`/`Bearer` headers, logs, errors, fixtures, or
+  outputs. Missing auth surfaces a structured `missing_auth` before any `fetch` (zero network);
+  `auth_error` is only an upstream 401/403. The full statement of the route is the skill body's
+  "Authentication: the vault-only token route" section and README's "Token setup (vault-only)".
 - `dev.toolfactory/` — the operation snapshot, coverage verdicts and the generation lock;
   never hand-edit (`toolfactory adopt <path>` first if you must).
+- `skills/<name>/SKILL.md` — the agent-facing instructions: only frontmatter and the
+  `<!-- tf:operations -->` block are generated, so the prose around them (the token route
+  included) is the author's and survives regeneration. README prose outside
+  `<!-- tf:install -->` and AGENTS prose outside `<!-- tf:agents -->` likewise.
 - `.agents/` — the agent-config canon: `skills/`, `mcp/servers.json`, `setup`, `sync.py`.
 - `hosts/<id>/` — the host-native escape hatch for a selected host; nothing else creates it.
 
@@ -31,6 +38,30 @@ One paragraph: what an agent working in this repo should know before touching `s
 Core logic is a pure function of (JSON arguments, environment/config, filesystem). Anything a
 host provides that is not one of those three is not available to core; a host-native shim
 converts it into one of them before the call.
+
+## Token route (vault-only)
+
+One contract, three documents: the skill body ("Authentication: the vault-only token route"),
+README ("Token setup (vault-only)") and the Layout bullet above all say the same thing.
+
+- **Read site, exactly one:** `context().config["GROUPME_ACCESS_TOKEN"]` in `src/ops.ts`.
+- **Send site, exactly one:** the `X-Access-Token` header of a GET to
+  `https://api.groupme.com` in `src/groupme/client.ts`.
+- **Never** in logs, errors, fixtures or outputs: `GroupMeError.message` is the redacted JSON
+  `{"code":...}` envelope, and upstream `meta.errors` plus attached causes are scrubbed of the
+  token before they leave the client.
+- **No token means no call:** `missing_auth` is raised before the first `fetch`.
+
+Enforcement: the cross-operation handler invariant in `tests/surface-contract.test.ts`
+(`missing_auth`, zero fetches, no credential/header noise, no attached cause), the
+credential-free surface lane `npm run test:surface` (`scripts/smoke-cli-list.mjs`,
+`scripts/smoke-mcp-surface.mjs`, `scripts/smoke-missing-auth.mjs`), and the token-route leak
+check `npm run test:token-route` (`scripts/check-token-leak.mjs`). The leak check exists
+because a grep cannot prove this route: the token NAME appears legitimately in `src/`, so the
+check asserts the token VALUE's absence — one read site, one send site, no token-shaped query
+parameter, and every upstream error surface (message, `errors`, cause) scrubbed to
+`[redacted]` when `fetch` is stubbed to echo a sentinel token. Never supply a credential to
+make a portable check pass.
 
 ## Agent config
 

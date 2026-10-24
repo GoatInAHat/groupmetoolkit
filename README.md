@@ -11,6 +11,11 @@ value): the token is sent only in the `X-Access-Token` header, consumed via
 `context().config`, and never appears in URLs, logs, errors, fixtures, or outputs. Missing
 auth surfaces a structured `missing_auth` with no network call.
 
+The same route is documented for agents in the skill body, `skills/groupmetoolkit/SKILL.md`
+(section "Authentication: the vault-only token route"): one read site
+(`context().config["GROUPME_ACCESS_TOKEN"]`), one send site (the `X-Access-Token` header of
+GETs to `https://api.groupme.com`), and no token anywhere else.
+
 ## Status
 
 Standalone installation from npm is **not currently available**. The package is unpublished:
@@ -44,6 +49,7 @@ npx toolfactory validate
 npm test             # portable core suite: tests/**/*.test.ts, no host deps, Node 22+
 npm run test:integration   # native OpenClaw host suite, Node 24 only
 npm run test:surface       # built CLI/MCP listing + missing-auth smokes, no credential
+npm run test:token-route   # token-route leak check: read/send sites, URL and redaction
 ```
 
 `npm test` deliberately discovers only `tests/**/*.test.ts`. The native host tests live under
@@ -83,6 +89,30 @@ surfaces, credential-free and offline:
   exactly `1`, prints the structured `{"code":"missing_auth"}` envelope on stderr, makes no
   network call and leaks no credential/header noise.
 
+### Token-route leak check
+
+`npm run test:token-route` (run `npm run build` first) is the executable counterpart of this
+section's prose. A grep for `GROUPME_ACCESS_TOKEN` cannot prove the route — the name appears
+legitimately in `src/`. What must never appear is the token *value*, so the check asserts three
+things:
+
+- **Static structure.** The token is read only as `ctx.config["GROUPME_ACCESS_TOKEN"]` (the
+generated `src/toolfactory/config.ts` is the single env-injection boundary); no `?access_token=`
+or `?token=` query parameter exists anywhere in `src/`; `src/groupme/client.ts` builds exactly
+one `X-Access-Token` header on a `GET` and keeps `scrubToken`/`redactUpstreamErrors`/
+`redactCause` wired; no 32-hex credential-shaped literal sits in source.
+- **Missing auth, on the built CLI.** `me` with the token scrubbed exits `1` with the parseable
+`{"code":"missing_auth"}` envelope and no credential noise.
+- **Present auth, at the handler layer.** With a sentinel token configured and `fetch` stubbed to
+return an upstream error envelope that echoes the token, every operation's `GroupMeError`
+message, `errors` list and attached cause carry `[redacted]` instead of the sentinel, the
+request URL never contains it, and the `X-Access-Token` header does. That is the only route by
+which the value could leak.
+
+The check is hermetic: no network, no credential, no writes. Both halves were verified to fail
+on a broken route (a `?access_token=` URL failed the static half; an unscrubbed error leaked
+the sentinel and failed the behavioural half).
+
 ## Token setup (vault-only)
 
 `GROUPME_ACCESS_TOKEN` is a **sensitive** Tool Factory config input. Hosts inject its value
@@ -95,8 +125,10 @@ disclosed; treat one shared that way as compromised and rotate it. `.env` is git
 exists only for the author-owned `npm run test:live` opt-in — the mock and CI tiers never read
 it, never acquire a real credential and never call GroupMe.
 
-With no token configured (the default for `npm test` and CI), every operation fails fast with
-a structured `missing_auth` error and makes no network call.
+With no token configured (the default for `npm test`, `npm run test:surface` and CI), every
+operation fails fast with a structured `missing_auth` error and makes no network call. That
+holds for all six operations on both surfaces, and `tests/surface-contract.test.ts` plus the two
+smokes above keep it true for any operation added later.
 
 ## What is not available yet
 

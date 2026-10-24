@@ -6,19 +6,45 @@ description: Read-only GroupMe account tools usable from OpenClaw without a
 
 # groupmetoolkit
 
-Explain here when an agent should reach for this tool and how to combine its operations.
+Read GroupMe account data — the authenticated profile, the group list, one group, direct-message
+conversations, a group's message history, and a bounded search over that history — without
+mutating anything. Every operation is read-only and returns redacted, structured metadata;
+nothing is persisted. Reach for these operations when a question is answered by "what does this
+GroupMe account contain right now", not by "change it": there is no create, update, delete, post
+or send operation here. Combine them by resolving an id with `groups` or `chats` first, then
+reading with `group`, `group_messages` or `search_group_messages`.
 
-<!-- tf:auth -->
-## Authentication
+## Authentication: the vault-only token route
 
-All operations are strictly read-only and authenticate with `GROUPME_ACCESS_TOKEN`, sent only
-in the `X-Access-Token` header to the fixed official GroupMe host. The token is a sensitive
-toolfactory config input consumed via `context().config` and is vault-backed: hosts inject the
-value, so it never appears in URLs, logs, errors, fixtures, or outputs. With no token
-configured, every operation surfaces a clear structured `auth_error` with no network call;
-each failure mode surfaces a distinct redacted error code.
+All operations authenticate with `GROUPME_ACCESS_TOKEN`. That value is a **sensitive** Tool
+Factory config input and it is **vault-only**: hosts inject it from their vault, never from a
+chat message, a prompt, a committed `.env`, a GitHub Actions secret, a fixture, a log line or an
+error payload. Core never acquires a credential by itself.
 
-<!-- /tf:auth -->
+- Consumed at exactly one place: `context().config["GROUPME_ACCESS_TOKEN"]` inside the operations.
+- Sent at exactly one place: the `X-Access-Token` request header of a GET to the fixed official
+  host `https://api.groupme.com` — never in a URL or query string, never as an `Authorization`
+  header, never as `Bearer`.
+- Never appears in URLs, logs, errors, fixtures or outputs. Errors are redacted structured
+  envelopes: `GroupMeError.message` IS the JSON `{"code":...}` text, upstream `meta.errors`
+  entries are scrubbed of the request token, and diagnostic causes have the token scrubbed
+  before attachment, so a host that serializes causes cannot leak it either.
+- With no token configured, every operation fails closed with the structured code
+  `missing_auth` — decided **before the first fetch**, so there is no network call at all.
+  Every other failure mode is a distinct redacted code (`auth_error`, `not_found`,
+  `rate_limited`, `upstream_error`, `network_error`, `redirect_blocked`,
+  `malformed_response`).
+
+An agent must never ask a user to paste a token into a conversation: a token typed in chat is
+already disclosed. If one is shared that way, treat it as compromised and rotate it. Configure it
+through the host's vault-backed config instead, and let the host inject it.
+
+The route is enforced, not just documented: `npm run test:token-route`
+(`scripts/check-token-leak.mjs`, run `npm run build` first) asserts the single read site and
+single send site, that no token-shaped query parameter exists in `src/`, and that every upstream
+error surface — message, `errors` list and attached cause — is scrubbed of a sentinel token when
+`fetch` is stubbed to echo it. If you are changing how a request is built or how an error is
+formed, run it: it fails when a token value could reach a URL, a log, an error or an output.
 
 <!-- tf:operations -->
 ## Operations
