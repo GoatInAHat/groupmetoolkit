@@ -9,7 +9,7 @@ returns redacted, structured metadata and writes no message history to disk.
 All operations authenticate with `GROUPME_ACCESS_TOKEN` (vault-backed, hosts inject the
 value): the token is sent only in the `X-Access-Token` header, consumed via
 `context().config`, and never appears in URLs, logs, errors, fixtures, or outputs. Missing
-auth surfaces a structured `auth_error` with no network call.
+auth surfaces a structured `missing_auth` with no network call.
 
 ## Status
 
@@ -96,7 +96,7 @@ exists only for the author-owned `npm run test:live` opt-in — the mock and CI 
 it, never acquire a real credential and never call GroupMe.
 
 With no token configured (the default for `npm test` and CI), every operation fails fast with
-a structured `auth_error` and makes no network call.
+a structured `missing_auth` error and makes no network call.
 
 ## What is not available yet
 
@@ -113,8 +113,8 @@ pagination semantics, redaction and error paths.
 
 Proving the tool against a live GroupMe account is **externally blocked and overseer-owned**:
 it needs the vault-backed token, which an automated checkout must never acquire. Calling
-`me` with no `GROUPME_ACCESS_TOKEN` returns the structured `auth_error` and makes no network
-call, so a real-account round trip cannot be performed here. Do not supply a credential as
+`me` with no `GROUPME_ACCESS_TOKEN` returns the structured `missing_auth` error and makes no
+network call, so a real-account round trip cannot be performed here. Do not supply a credential as
 part of a portable check.
 
 Last offline evidence (mocked suite, no credential): `npm test` 166 passed / 1 skipped (the
